@@ -1,0 +1,777 @@
+# Drev — Architecture and Build Specification
+
+> **Read this file first.** It is the single source of truth for what Drev is, how it works, and what to build. Subsequent task files (`TASKS/`) reference sections here. When in doubt, defer to this document.
+
+---
+
+## 0. Project Identity
+
+**Name:** Drev
+**One-line pitch:** A CLI and MCP server that lets engineers resume each other's Claude Code sessions through a shared Git repo.
+**License:** MIT
+**Language:** TypeScript (Node.js ≥20)
+**Distribution:** npm (`drev`), Claude Code plugin marketplace (v0.1)
+**Status:** Pre-implementation. No code written yet.
+
+## 1. Problem and Solution
+
+### 1.1 Problem
+
+Claude Code sessions are single-user artifacts that die when an engineer logs off. When work is handed off (PTO, rotation, ticket reassignment), the receiving engineer rebuilds context from Slack threads, ticket comments, or memory. The first engineer's actual debugging session — the JSONL transcript with every read, edit, and decision — never reaches the next person.
+
+### 1.2 Solution
+
+Drev treats Claude Code sessions as first-class shareable artifacts. The producer runs `drev share`, the session JSONL plus metadata is pushed to a shared Git repo. The consumer runs `drev resume <name>`, Drev pulls the JSONL, rewrites filesystem paths to match the consumer's environment, and places the file where Claude Code expects it. Native `claude --resume <id>` then continues the session with full transcript fidelity.
+
+### 1.3 What Drev Is Not
+
+- Not a knowledge base, wiki, or memory product.
+- Not a SaaS. No service to host. No signup.
+- Not a session-summary tool. Drev moves the actual JSONL, not a summary.
+- Not a multi-tool aggregator (yet). v0 is Claude Code only.
+
+## 2. Core Mechanic
+
+```
+┌──────────────┐   share    ┌─────────────┐   pull    ┌──────────────┐
+│ Engineer A   │ ─────────► │ Git Repo    │ ────────► │ Engineer B   │
+│ Claude Code  │            │ (GitHub etc)│           │ Claude Code  │
+│  session.jsonl│            │  meta.yaml  │           │  rewritten   │
+│              │            │  session.jsonl│         │  session.jsonl│
+└──────────────┘            └─────────────┘           └──────────────┘
+                                                              │
+                                                              ▼
+                                                      claude --resume <id>
+                                                      (native, full fidelity)
+```
+
+The Git repo is the source of truth. Drev never connects engineers' machines directly. Engineer A can be offline by the time Engineer B picks up the session — the repo has it.
+
+## 3. Architectural Decisions (Locked)
+
+These are decisions made during design that should not be re-litigated during implementation. If a task seems to require violating one of these, stop and flag it.
+
+### 3.1 Git as Backend, No Self-Hosted Server
+Users supply their own Git remote. Drev never operates infrastructure. Rationale: power-user adoption dies the moment installation requires hosting a service.
+
+### 3.2 Plaintext Storage
+Sessions are stored unencrypted in the repo. Trust model is "same as committing source code." Aggressive pre-push redaction handles secret leakage. Encryption is a v0.5+ option, not v0.
+
+### 3.3 Single Branch, Per-User Directories
+No branches for sessions, forks, or visibility. Concurrent shares use per-user directories under `users/<username>/` for natural conflict avoidance. Single working branch (`main` or repo default).
+
+### 3.4 No Central Index File
+`drev list` walks the directory tree to build the index dynamically. No shared mutable state file that all writers would conflict on.
+
+### 3.5 Identity from Git Config
+No auth. `git config user.email` is the identity. Anyone with repo write access can act as anyone (same trust model as Git itself).
+
+### 3.6 TypeScript on Node, Not Go or Python
+Cross-platform via Node runtime. Audience already has Node (Claude Code requires it). Mature MCP SDK. npm install is one line.
+
+### 3.7 Path Rewriting Is Mandatory
+The load-bearing technical piece. Sessions captured on one machine reference absolute paths that don't exist on another machine. Drev rewrites these on resume. Without this, the product does not work.
+
+### 3.8 `drev resume` Launches Claude Code Directly
+After preparing the session, `drev resume` spawns `claude --resume <id>` as a subprocess. The user runs one command and lands in a resumed Claude Code session. If the spawn fails for any reason (binary not in PATH, OS quirk), Drev prints the manual command as a fallback. The session is always prepared on disk regardless of whether the auto-launch succeeds.
+
+### 3.9 Auto-Share Is Opt-In
+Hooks ship in v0 but install only via `drev hooks install`. Default is manual share. Reason: auto-modifying global Claude Code config without explicit consent erodes trust.
+
+## 4. Repository Layout
+
+A Drev-managed Git repo:
+
+```
+team-sessions/
+├── README.md                      # auto-generated by `drev init`
+├── .drev/
+│   ├── config.yaml                # repo-level settings (committed)
+│   └── schema-version             # plain text, currently "1"
+├── users/
+│   └── <username>/
+│       └── <YYYY-MM-DD>-<name-or-id>/
+│           ├── session.jsonl      # Claude Code session, redacted
+│           └── meta.yaml          # session metadata
+└── .gitignore
+```
+
+**Per-session directories** are named `<date>-<name>` if the user provided a name, else `<date>-<short-id>`. Examples:
+- `2026-04-30-auth-refactor/`
+- `2026-04-30-7f3a2b1c/`
+
+## 5. Data Schemas
+
+### 5.1 Session Metadata (`users/<user>/<dir>/meta.yaml`)
+
+```yaml
+schema_version: 1
+id: 7f3a2b1c-1234-5678-90ab-cdef01234567   # UUID from Claude Code, immutable
+name: auth-refactor                          # user-defined, optional, editable
+purpose: share                               # share | backup
+user: fuat                                   # short username
+user_email: fuat@example.com                 # from git config
+project: forever-town                        # derived from project root dir name
+project_root: /Users/fuat/work/forever-town  # absolute, used for path rewriting
+branch: inventory-fix
+commit_sha: a1b2c3d4e5f6
+created_at: 2026-04-30T14:32:00Z
+shared_at: 2026-04-30T18:15:00Z
+title: "Debugging inventory desync after merge animations"
+summary: |
+  Multi-line free-form text. Optional.
+  Auto-generated or user-provided.
+visibility: team                             # team | private
+files_touched:
+  - Assets/Scripts/InventorySystem.cs
+  - Assets/Scripts/Merge/MergeHandler.cs
+parent_session: null                         # UUID of session this forked from, v0.5+
+turns: 47
+size_bytes: 312584
+redactions:
+  - { type: anthropic_key, count: 0 }
+  - { type: openai_key, count: 0 }
+  - { type: aws_access_key, count: 0 }
+```
+
+**Required fields:** `schema_version`, `id`, `purpose`, `user`, `user_email`, `project_root`, `created_at`, `shared_at`, `visibility`, `turns`, `size_bytes`, `redactions`.
+**Optional fields:** `name`, `project`, `branch`, `commit_sha`, `title`, `summary`, `files_touched`, `parent_session`.
+
+### 5.2 Repo Config (`.drev/config.yaml`)
+
+```yaml
+schema_version: 1
+team_name: forever-town-team
+default_visibility: team                     # team | private
+retention_days: 365                          # informational, no auto-deletion in v0
+redaction_extensions:                        # team-specific patterns appended to defaults
+  - "ACME_INTERNAL_[A-Z0-9]+"
+```
+
+### 5.3 User Config (`~/.drev/config.yaml`)
+
+```yaml
+schema_version: 1
+default_repo: ~/.drev/repos/team-sessions    # path to local clone
+auto_share: manual                           # manual | auto-private | auto-team
+auto_share_idle_threshold_seconds: 60
+auto_summarize: false                        # if true, call API for title/summary
+ignore_patterns:                             # extra redaction patterns
+  - "MY_PERSONAL_TOKEN_[A-Z]+"
+ignore_paths:                                # paths in JSONL to never share (substring match)
+  - "secrets/"
+  - ".env"
+```
+
+### 5.4 Local State
+
+```
+~/.drev/
+├── config.yaml                              # user config
+├── repos/
+│   └── <repo-name>/                         # local clone of team repo
+├── outbox/                                  # queued shares awaiting network
+│   └── <id>/
+│       ├── session.jsonl
+│       └── meta.yaml
+├── logs/
+│   └── autoshare.log                        # rolling auto-share activity
+└── .sweep.lock                              # concurrency lock for autoshare-sweep
+```
+
+## 6. Module Structure (`src/`)
+
+```
+src/
+├── cli/
+│   ├── index.ts                            # entry, registers all commands
+│   ├── commands/
+│   │   ├── init.ts
+│   │   ├── share.ts
+│   │   ├── backup.ts
+│   │   ├── list.ts
+│   │   ├── resume.ts
+│   │   ├── rename.ts
+│   │   ├── search.ts
+│   │   ├── mark.ts
+│   │   ├── sync.ts
+│   │   ├── scrub.ts
+│   │   ├── hooks.ts                        # install/uninstall/status
+│   │   └── autoshare-sweep.ts              # internal command called by hooks
+│   └── ui.ts                               # console output helpers (chalk, ora)
+├── core/                                    # pure logic, no CLI/MCP dependencies
+│   ├── config.ts                           # load/save user + repo config
+│   ├── identity.ts                         # current user from git config
+│   ├── repo.ts                             # local repo clone management
+│   ├── session.ts                          # JSONL session reading and stats
+│   ├── metadata.ts                         # meta.yaml schema, validation, I/O
+│   ├── claude-paths.ts                     # encoded-cwd, ~/.claude paths
+│   ├── path-rewriter.ts                    # the load-bearing piece (§7)
+│   ├── redaction.ts                        # secret pattern scanning (§8)
+│   ├── git-ops.ts                          # simple-git wrappers
+│   ├── outbox.ts                           # offline queue
+│   └── name-resolver.ts                    # name-or-id → session resolution
+├── mcp/
+│   ├── server.ts                           # MCP server entry
+│   └── tools.ts                            # tool definitions
+└── lib/
+    ├── errors.ts                           # typed error classes
+    └── logger.ts                           # structured logging to ~/.drev/logs
+```
+
+**Critical structural rule:** `core/` modules have no imports from `cli/` or `mcp/`. Both interfaces are thin wrappers over `core/`. This is the most important architectural constraint in the codebase. Tests live next to logic in `core/`.
+
+## 7. Path Rewriting (Load-Bearing)
+
+This section is the most important technical content in the document. The product fails if this is wrong.
+
+### 7.1 Why It Exists
+
+Claude Code sessions are stored at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`. The `<encoded-cwd>` encodes the absolute working directory: every non-alphanumeric character in the path becomes `-`. So `/Users/fuat/work/forever-town` becomes `-Users-fuat-work-forever-town`.
+
+The JSONL file itself contains absolute paths everywhere: tool call inputs, tool call outputs, assistant text, error messages. When Engineer A's session is moved to Engineer B's machine, two things must change:
+
+1. The file's location: from A's `<encoded-cwd>` to B's `<encoded-cwd>`.
+2. The paths inside the file: from A's project root to B's project root.
+
+If either is wrong, `claude --resume` either can't find the file or finds it but can't reconcile the paths with the local filesystem.
+
+### 7.2 The Contract
+
+```typescript
+function rewritePaths(
+  jsonl: string,
+  sourceRoot: string,
+  destRoot: string
+): string;
+```
+
+- Input: the original JSONL content as a string.
+- Input: `sourceRoot` is the original engineer's project root (from `meta.yaml.project_root`).
+- Input: `destRoot` is the resuming engineer's project root (auto-detected via `git rev-parse --show-toplevel` or prompted).
+- Output: a new JSONL string with all occurrences of `sourceRoot` replaced by `destRoot`, including JSON-escaped occurrences.
+
+### 7.3 Algorithm
+
+```typescript
+function rewritePaths(jsonl: string, sourceRoot: string, destRoot: string): string {
+  const sourceNorm = normalizePath(sourceRoot);   // strip trailing /, posix-style separators
+  const destNorm = normalizePath(destRoot);
+
+  if (sourceNorm === destNorm) return jsonl;
+
+  const rawSource = sourceNorm;
+  const escSource = JSON.stringify(sourceNorm).slice(1, -1);  // JSON-escaped form
+  const rawDest = destNorm;
+  const escDest = JSON.stringify(destNorm).slice(1, -1);
+
+  return jsonl.split('\n').map(line => {
+    if (!line.trim()) return line;
+    return line
+      .split(escSource).join(escDest)   // escaped form first (more specific)
+      .split(rawSource).join(rawDest);  // then raw form
+  }).join('\n');
+}
+```
+
+Use `split/join` rather than `replaceAll` to avoid regex-special-char issues. Order matters: replace JSON-escaped form before raw form, otherwise the raw replacement transforms paths inside escaped strings incorrectly.
+
+### 7.4 Edge Cases (All Must Have Tests)
+
+1. **Substring collision:** `/Users/fu` should not match `/Users/fuat`. Mitigation: source root must end at a path-separator boundary in the JSONL. Add a boundary-check pass that only replaces when the next character is `/`, `"`, `\`, end-of-string, or whitespace.
+2. **Regex special characters in paths:** `+`, `(`, `)`, `[` in directory names. Mitigation: split/join is regex-free.
+3. **Windows paths:** Claude Code uses forward slashes internally even on Windows. Normalize all paths to forward slashes before rewriting.
+4. **Trailing slash inconsistency:** `/foo/` vs `/foo`. Mitigation: `normalizePath` strips trailing slashes uniformly.
+5. **Case sensitivity:** macOS may have `/Users/Fuat` and `/Users/fuat` resolving to the same directory. Drev does case-sensitive replacement and documents this.
+6. **Source equals destination:** no-op early return.
+7. **Source not found in JSONL:** valid case, return JSONL unchanged.
+8. **Path appears in assistant text, not just tool calls:** caught by the line-level pass.
+9. **Path appears in stderr embedded in tool result:** caught by the line-level pass.
+10. **Multi-byte characters in paths:** all string operations should handle Unicode correctly (Node default).
+
+### 7.5 Validation Gate
+
+Before v0 ships, this must pass:
+
+1. Capture a real Claude Code session of ≥30 turns with at least 5 tool calls touching real files.
+2. Save the JSONL.
+3. Rewrite paths to a different absolute root (simulating a different user's machine).
+4. Place at the destination encoded-cwd path.
+5. Run `claude --resume <id>` from the destination working directory.
+6. Ask Claude a specific factual question about the original session.
+7. Verify Claude answers correctly with details from the original session.
+
+If step 7 fails, the path rewriter has a bug or `claude --resume` has a context-loading bug (Anthropic issue #15837). Investigate before proceeding.
+
+## 8. Redaction System
+
+### 8.1 Default Patterns
+
+Defined in `src/core/redaction.ts`:
+
+```typescript
+const DEFAULT_PATTERNS: RedactionPattern[] = [
+  { type: 'anthropic_key',  regex: /sk-ant-[A-Za-z0-9_-]{40,}/g },
+  { type: 'openai_key',     regex: /sk-(?:proj-)?[A-Za-z0-9_-]{40,}/g },
+  { type: 'aws_access_key', regex: /AKIA[0-9A-Z]{16}/g },
+  { type: 'aws_secret_key', regex: /(?<![A-Za-z0-9])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9])/g },
+  { type: 'github_pat',     regex: /ghp_[A-Za-z0-9]{36}/g },
+  { type: 'github_oauth',   regex: /gho_[A-Za-z0-9]{36}/g },
+  { type: 'github_app',     regex: /(?:ghu|ghs)_[A-Za-z0-9]{36}/g },
+  { type: 'slack_token',    regex: /xox[baprs]-[A-Za-z0-9-]{10,}/g },
+  { type: 'private_key',    regex: /-----BEGIN [A-Z ]+PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+PRIVATE KEY-----/g },
+  { type: 'jwt',            regex: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g },
+  { type: 'google_api_key', regex: /AIza[0-9A-Za-z_-]{35}/g },
+  { type: 'stripe_key',     regex: /(?:sk|pk|rk)_(?:test|live)_[A-Za-z0-9]{24,}/g },
+];
+```
+
+Each pattern has a `type` (used in the redacted marker and in `meta.yaml.redactions`) and a `regex` with the global flag.
+
+**Note:** `aws_secret_key` is intentionally aggressive (40-char base64-ish strings) and will produce false positives. This is acceptable: false positives mean an unrelated string gets `<REDACTED:aws_secret_key>` which is harmless, while false negatives leak a credential.
+
+### 8.2 The Redaction Function
+
+```typescript
+function redact(jsonl: string, patterns: RedactionPattern[]): {
+  output: string;
+  counts: Record<string, number>;
+};
+```
+
+Apply each pattern in order. Replace matches with `<REDACTED:<type>>`. Count matches per type. Return the redacted JSONL and counts. Counts go into `meta.yaml.redactions`.
+
+### 8.3 Configuration
+
+The patterns used are: `DEFAULT_PATTERNS` ++ `repo.config.redaction_extensions` ++ `user.config.ignore_patterns`. User and repo extensions are user-defined regex strings compiled at runtime.
+
+### 8.4 First-Share Confirmation
+
+The first time a user shares to a given repo, Drev shows:
+
+```
+This is your first share to <repo-name>.
+
+Drev will redact common secrets before pushing. Found in this session:
+  - 0 anthropic_key
+  - 1 github_pat
+  - 0 aws_access_key
+  ...
+
+Continue? [Y/n]
+```
+
+Subsequent shares are silent unless redactions occurred, in which case a one-line summary is printed.
+
+### 8.5 The Scrub Command
+
+`drev scrub <id>` removes a session from the entire Git history using `git filter-repo` (shelled out). Force-pushes after rewriting. Requires explicit `--confirm` flag and shows a warning. Documented as the emergency hatch when redaction missed something.
+
+## 9. Command Specifications
+
+Every command lives in `src/cli/commands/<name>.ts` and exports a Commander-compatible action function. Each calls into `core/` for actual work.
+
+### 9.1 `drev init <repo-url> [--name <local-name>]`
+
+Initialize Drev with a Git remote.
+
+**Behavior:**
+1. Validate the URL is a syntactically valid Git remote (https/ssh/git protocol).
+2. Determine local clone path: `~/.drev/repos/<local-name>` (defaults to last URL segment).
+3. If clone path exists, error with "already initialized."
+4. `git clone <url>` into the path.
+5. Detect default branch from `git remote show origin` or `HEAD` ref.
+6. If repo lacks `.drev/`, scaffold:
+   - `.drev/schema-version` (contents: `1`)
+   - `.drev/config.yaml` (with `team_name` from URL last segment, `default_visibility: team`, `retention_days: 365`)
+   - `users/.gitkeep`
+   - `README.md` (templated, explains it's a Drev-managed repo)
+   - Commit and push.
+7. If repo has `.drev/`, validate `schema-version` is `1`.
+8. Update `~/.drev/config.yaml` to set `default_repo` to this clone path.
+9. Print success: "Drev initialized. Run `drev share` to share your first session."
+
+### 9.2 `drev share [--name N] [--private] [--session-id ID]`
+
+Share a session to the team.
+
+**Behavior:**
+1. Read user config; load default repo.
+2. Resolve target session:
+   - If `--session-id` given, find it.
+   - Else, find most recent JSONL across all `~/.claude/projects/*/`.
+3. Read JSONL, extract: turn count, files touched (from tool call paths within the project root), creation timestamp.
+4. Capture git state from the project root: `HEAD` SHA and current branch (best-effort, omit if not a git repo).
+5. Resolve name:
+   - If `--name` given, use it (sanitize: lowercase, replace whitespace with `-`, remove special chars).
+   - Else, prompt with a suggestion based on the first user prompt (truncated, sanitized). Allow accept/edit/skip.
+6. Run redaction pass on JSONL.
+7. Build `meta.yaml`:
+   - `purpose: share`
+   - `visibility: private` if `--private`, else from `repo.config.default_visibility`.
+   - All other fields from §5.1.
+8. `git pull --rebase` in repo clone.
+9. Compute target dir: `users/<username>/<YYYY-MM-DD>-<name-or-shortid>/`.
+10. Write `session.jsonl` (redacted) and `meta.yaml`.
+11. `git add`, `git commit -m "share: <name>"`, `git push`.
+12. On push failure: copy session to `~/.drev/outbox/<id>/`, log, retry on next sync.
+13. Print summary.
+
+### 9.3 `drev backup --name N [--session-id ID]`
+
+Identical to `share` but `purpose: backup` and `visibility: private`. Name is required (errors if missing).
+
+### 9.4 `drev list [filters]`
+
+List available sessions.
+
+**Filters:**
+- `--mine` — only own sessions
+- `--team` — only team-visible (excludes own private/backups)
+- `--backups` — only own backups
+- `--project <name>` — substring match on `meta.project`
+- `--user <username>` — exact match on `meta.user`
+- `--days <n>` — only sessions shared within last N days
+- `--limit <n>` — cap output (default 20)
+
+**Behavior:**
+1. `git pull --rebase` in repo clone (with timeout fallback to local state).
+2. Walk `users/*/*/meta.yaml`. Parse each.
+3. Filter according to flags.
+4. Sort by `shared_at` descending.
+5. Render table: ID-prefix (8 chars), Name, User, Project, "Xh ago", Title.
+
+### 9.5 `drev resume <name-or-id> [--into <path>] [--no-launch]`
+
+Prepare a session and launch Claude Code resumed into it.
+
+**Behavior:**
+1. `git pull --rebase`.
+2. Resolve argument via `name-resolver`:
+   - If looks like UUID prefix (8+ hex chars), match by ID prefix.
+   - Else, match by `name` substring.
+   - If multiple matches, list them and exit with error.
+3. Load `meta.yaml` and `session.jsonl`.
+4. Determine destination project root:
+   - If `--into <path>` given, use it.
+   - Else, run `git rev-parse --show-toplevel` in CWD.
+   - If neither works, prompt the user.
+5. Compare `meta.commit_sha` to local `HEAD`. If different:
+   - Compute diff (which files changed).
+   - Identify overlap with `meta.files_touched`.
+   - Print warning, ask user to continue.
+6. Run path rewriter: `rewritePaths(jsonl, meta.project_root, destRoot)`.
+7. Compute Claude Code's encoded-cwd for `destRoot`.
+8. Write rewritten JSONL to `~/.claude/projects/<encoded-cwd>/<id>.jsonl`. Create directories as needed.
+9. Print: "Resuming '<name>' in <destRoot>..."
+10. Locate the `claude` binary:
+    - Check `$PATH` via `which claude` (POSIX) or `where claude` (Windows).
+    - If not found, fall through to step 12 (manual mode).
+11. Spawn `claude --resume <id>` as a subprocess:
+    - `cwd = destRoot`
+    - `stdio = inherit` (the user is now talking to Claude Code directly)
+    - `shell = false` (avoid quoting issues)
+    - Drev exits with the subprocess's exit code when it terminates.
+12. If `--no-launch` was passed, or if step 10 failed to locate the binary, or if the spawn itself errored:
+    - Print fallback instructions:
+      ```
+      Session prepared but Claude Code was not launched automatically.
+      Run this command from <destRoot>:
+
+          claude --resume <id>
+      ```
+    - Exit 0 (preparation succeeded; only the convenience launch failed).
+
+**Rationale for the fallback:** keeping the manual command available means Drev never blocks the user even if its launch logic breaks (Claude Code not in PATH, unusual shell, Windows path quirks, future Claude Code CLI changes). The user can always copy-paste to continue.
+
+**`--no-launch` flag:** lets users opt out of subprocess launching for scripting, CI, or when they want to inspect the prepared file before launching themselves.
+
+### 9.6 `drev rename <name-or-id> <new-name>`
+
+Rename a session you own.
+
+**Behavior:**
+1. Resolve session.
+2. Verify ownership: `meta.user_email` must match current `git config user.email`. Error if not.
+3. Sanitize new name.
+4. `git mv users/<self>/<old-dir> users/<self>/<new-date>-<new-name>` (preserve date prefix).
+5. Update `meta.yaml.name`.
+6. Commit and push.
+
+### 9.7 `drev search <query>`
+
+Search across session metadata.
+
+**Behavior:**
+1. `git pull --rebase`.
+2. Walk all `meta.yaml`.
+3. Substring match (case-insensitive) against `name`, `title`, `summary`, `files_touched`.
+4. Render results as `drev list` does.
+
+### 9.8 `drev mark <name-or-id> <flag>`
+
+Change visibility or delete.
+
+**Flags:**
+- `--public` / `--team` — set `visibility: team`
+- `--private` — set `visibility: private`
+- `--delete` — `git rm -r` the session directory (note: history retains data; use `scrub` for true removal)
+
+**Behavior:**
+1. Resolve session.
+2. Verify ownership for all but `--delete` (delete also requires ownership).
+3. Apply change, commit, push.
+
+### 9.9 `drev sync`
+
+Pull and drain outbox.
+
+**Behavior:**
+1. `git pull --rebase`.
+2. For each item in `~/.drev/outbox/`:
+   - Copy to repo, commit, push.
+   - On success, delete from outbox.
+   - On failure, leave in place.
+3. Print summary.
+
+### 9.10 `drev scrub <name-or-id> [--confirm]`
+
+Permanently remove a session from Git history.
+
+**Behavior:**
+1. Resolve session. Verify ownership.
+2. Without `--confirm`: print explanation and exit.
+3. With `--confirm`:
+   - Verify `git filter-repo` is available; if not, error with install instructions.
+   - Run `git filter-repo --path <session-dir> --invert-paths`.
+   - Force-push.
+4. Print warning that other engineers must re-clone.
+
+### 9.11 `drev hooks <subcommand>`
+
+Manage Claude Code hooks for auto-share.
+
+**Subcommands:**
+- `install` — add Drev's `SessionEnd` and `SessionStart` hooks to `~/.claude/settings.json`. Preserve all other settings. Tag entries with a marker (e.g., `# managed by drev`) for clean uninstall.
+- `uninstall` — remove only Drev-tagged hook entries.
+- `status` — show whether hooks are installed and current `auto_share` mode.
+
+### 9.12 `drev autoshare-sweep` (Internal)
+
+Called by hooks. Not intended for direct user invocation but works if invoked.
+
+**Behavior:** see §10.
+
+## 10. Auto-Share Sweep Algorithm
+
+Implemented in `src/cli/commands/autoshare-sweep.ts`. Called by the `SessionEnd` and `SessionStart` hooks.
+
+```
+1. Acquire ~/.drev/.sweep.lock. If held, exit silently.
+2. Read ~/.drev/config.yaml.
+3. If auto_share == "manual", release lock and exit.
+4. git pull --rebase in repo clone (with 10s timeout; on timeout, proceed with local state).
+5. Build set S of already-shared session IDs by walking users/<self>/*/meta.yaml.
+6. Walk all ~/.claude/projects/*/*.jsonl. For each:
+   a. Skip if mtime within auto_share_idle_threshold_seconds of now.
+   b. Skip if session ID in S.
+   c. Determine project root from encoded-cwd. Skip if a .drev-disable file exists at that root.
+   d. Share with: name = autogenerated, visibility = (private if auto_share=="auto-private" else team), purpose = share.
+7. Log results to ~/.drev/logs/autoshare.log (rolling, keep last 30 days).
+8. Release lock.
+9. Exit silently. Errors go to log only, never to stdout/stderr (hooks are invisible).
+```
+
+If 3+ consecutive sweep runs fail, the next interactive `drev` command prints a warning: `⚠ Auto-share has failed N times. Run 'drev sync' to investigate.`
+
+## 11. MCP Server
+
+### 11.1 Surface
+
+The MCP server in `src/mcp/server.ts` exposes these tools, each calling the same `core/` functions as the CLI:
+
+| Tool | Description |
+|------|-------------|
+| `drev_share` | Share the current Claude Code session. Optional name and visibility. |
+| `drev_list` | List available team sessions, with filters. |
+| `drev_resume` | Resume a session by name or ID. |
+| `drev_search` | Search across session metadata. |
+| `drev_rename` | Rename one of your own sessions. |
+| `drev_mark` | Change visibility or delete a session. |
+
+Each tool has a JSON Schema input definition matching the corresponding CLI flags.
+
+### 11.2 Transport
+
+stdio. Run as a Claude Code MCP server via:
+```
+claude mcp add drev -- drev-mcp
+```
+
+### 11.3 Behavior Parity
+
+CLI and MCP must produce identical output for equivalent operations. Both consume the same `core/` modules. Tests run against `core/`, then both surfaces are verified to call through correctly.
+
+## 12. Distribution
+
+### 12.1 npm
+
+Package name: `drev`
+`package.json` declares two binaries:
+```json
+"bin": {
+  "drev": "./dist/cli.js",
+  "drev-mcp": "./dist/mcp.js"
+}
+```
+Both built with `tsup`, with proper shebangs.
+
+Install:
+```
+npm install -g drev
+```
+
+### 12.2 Claude Code Plugin (v0.1)
+
+Add `.claude-plugin/plugin.json` and `marketplace.json` per Claude Code plugin spec. Distribute via:
+```
+claude plugin marketplace add codeturion/drev
+claude plugin install drev@drev-marketplace
+```
+
+### 12.3 No Native Binary in v0
+
+No `pkg`, `nexe`, or Bun-compiled binary. Node is a dependency.
+
+## 13. Testing Strategy
+
+### 13.1 Unit Tests (vitest)
+
+Required coverage:
+- `path-rewriter.ts`: every edge case in §7.4. Property-based tests with random-shaped paths.
+- `redaction.ts`: every default pattern with positive and negative examples. User-extension scenarios.
+- `metadata.ts`: round-trip parse/serialize. Schema validation. Migration stub for future versions.
+- `claude-paths.ts`: encoded-cwd computation on POSIX and Windows path samples.
+- `name-resolver.ts`: name vs ID detection, prefix matching, ambiguity handling.
+
+Aim for ≥80% line coverage on `core/`.
+
+### 13.2 Integration Tests
+
+End-to-end on a temp directory acting as both Git remote and two simulated users:
+- `share` produces correct repo structure.
+- `resume` produces correct file at correct path with correctly rewritten content.
+- Concurrent shares from two simulated users do not conflict.
+- Outbox queues on push failure and drains on `sync`.
+- `scrub` removes a session from history.
+
+### 13.3 The Critical Manual Test
+
+The path rewriter integration with real Claude Code (§7.5) is not unit-testable because it depends on Claude Code's runtime behavior. Document this test in `docs/MANUAL_TESTS.md` with exact reproduction steps. Run before every release.
+
+## 14. Build Plan and Phasing
+
+### 14.1 Pre-v0: The Experiment (Mandatory)
+
+Before any production code:
+
+1. Capture a real Claude Code session.
+2. Manually rewrite paths in the JSONL.
+3. Move to a different `<encoded-cwd>` location.
+4. Run `claude --resume <id>` from the new directory.
+5. Verify Claude has full context.
+
+If this fails, halt and reassess. The whole architecture depends on it working.
+
+### 14.2 v0 (Ship in 2-4 Weeks)
+
+All commands in §9. Auto-share hooks via §9.11 (opt-in). Testing per §13.
+
+**Excluded from v0:** MCP server, Claude Code plugin packaging, web UI (never), encryption, forking with lineage, full-text search.
+
+### 14.3 v0.1 (1-2 Weeks After v0)
+
+- MCP server (§11)
+- Claude Code plugin marketplace package (§12.2)
+- Polish and bug fixes from v0 user feedback
+- Optional API-based title/summary auto-generation
+
+### 14.4 v0.5
+
+- Session forking with `parent_session` lineage
+- Full-text search index
+- Optional encryption (age-based)
+- Multi-repo support per user
+
+### 14.5 v1.0
+
+- Read-only viewers (Obsidian plugin, web)
+- Cross-tool support: Cursor, Codex, Gemini sessions normalized to a common format
+
+## 15. Risks and Mitigations
+
+### 15.1 Path Rewriting Doesn't Work
+**Mitigation:** Run §14.1 experiment first. If it fails, fallback options:
+1. Use Agent SDK's `resume` programmatically instead of CLI flag.
+2. Hybrid mode: inject prior session as initial context message (lossier but functional).
+3. Rescope as session-archive + summary tool.
+
+### 15.2 Anthropic Ships Native Team Resume
+**Mitigation:** Ship fast. Position Drev as the open-source reference. If absorbed, that's a good outcome.
+
+### 15.3 JSONL Format Changes
+**Mitigation:** Schema version pinning. Detect on read, prompt user to upgrade Drev.
+
+### 15.4 Secret Leakage
+**Mitigation:** Aggressive default redaction, user-extensible patterns, `drev scrub` emergency hatch, loud README documentation.
+
+### 15.5 Path Collision False Matches
+**Mitigation:** Boundary-aware replacement (§7.4 case 1). Comprehensive unit tests.
+
+## 16. Definition of Done for v0
+
+- [ ] §14.1 experiment passes with a recorded test.
+- [ ] All §9 commands implemented and unit-tested.
+- [ ] `core/` ≥80% line coverage.
+- [ ] One end-to-end integration test passing in CI.
+- [ ] One real cross-machine resume tested manually and documented.
+- [ ] All §8.1 default redaction patterns implemented and tested.
+- [ ] README explains: install, init, first share, first resume in <50 lines.
+- [ ] Published to npm as `drev`.
+- [ ] Demo video showing the holiday-handoff scenario end-to-end.
+- [ ] `docs/ARCHITECTURE.md` (this file), `docs/MANUAL_TESTS.md`, `docs/REDACTION.md` committed.
+
+## 17. Conventions and Style
+
+- **Strict TypeScript:** `tsconfig.json` with `"strict": true`, `"noUncheckedIndexedAccess": true`.
+- **Error handling:** typed errors in `lib/errors.ts`, never throw plain `Error` from `core/`.
+- **Async I/O:** all file/git operations are async. No sync I/O except in CLI bootstrap.
+- **Logging:** structured via `lib/logger.ts`. Hooks log silently to file. CLI uses `chalk` for user-facing output.
+- **No unnecessary dependencies:** prefer Node stdlib + the libraries in §2 of DESIGN.md (now §2 of this file via implication). New deps require justification.
+- **Comments:** explain "why," not "what." Path rewriter and redaction modules deserve detailed comments because their correctness is critical.
+
+## 18. References
+
+- Anthropic issue #15837 (Claude Code resume context loading)
+- Anthropic issue #38536 (team memory feature request)
+- Anthropic issue #40981 (sharing Claude Code conversations with team members)
+- Claude Sync (`@tawandotorg/claude-sync`) — single-user sync, prior art
+- CPR (`EliaAlberti/cpr-compress-preserve-resume`) — summary-based handoff, prior art
+- claude-obsidian (`AgriciDaniel/claude-obsidian`) — wiki integration, distribution pattern reference
+
+## 19. Working with Claude Code on This Project
+
+When Claude Code is asked to implement Drev, it should:
+
+1. **Read this file first.** All decisions are recorded here.
+2. **Consult `TASKS/<task>.md`** for the specific scope of the current task. Tasks are intentionally narrow.
+3. **Not re-litigate locked decisions in §3.** If a task seems to require violating one, stop and ask.
+4. **Implement `core/` modules with no `cli/` or `mcp/` imports.**
+5. **Write tests alongside implementation.** Aim for the coverage targets in §13.
+6. **Treat the path rewriter and redaction system as load-bearing.** Extra scrutiny, extra tests.
+7. **Defer features explicitly listed as v0.1+ (§14.3-5).** No premature implementation.
+8. **Ask before adding dependencies.** The dep list is intentionally small.
+
+---
+
+*End of architecture document.*

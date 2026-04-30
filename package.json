@@ -1,0 +1,46 @@
+{
+  "name": "drev",
+  "version": "0.0.0",
+  "description": "Share Claude Code sessions through a Git repo.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Fuat Can Köseoğlu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Codeturion/drev.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "drev": "./dist/cli.js",
+    "drev-mcp": "./dist/mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5",
+    "commander": "^12",
+    "js-yaml": "^4",
+    "ora": "^8"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4",
+    "@types/node": "^20",
+    "@vitest/coverage-v8": "^4",
+    "tsup": "^8",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}
