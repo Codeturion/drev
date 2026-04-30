@@ -1,0 +1,302 @@
+import { describe, expect, it } from 'vitest';
+import { ValidationError } from '../lib/errors.js';
+import {
+  DEFAULT_PATTERNS,
+  compileUserPattern,
+  redact,
+  type RedactionPattern,
+} from './redaction.js';
+
+function patternByType(type: string): RedactionPattern {
+  const p = DEFAULT_PATTERNS.find((x) => x.type === type);
+  if (!p) throw new Error(`pattern not found: ${type}`);
+  return p;
+}
+
+function runOne(type: string, input: string): { output: string; count: number } {
+  const { output, counts } = redact(input, [patternByType(type)]);
+  return { output, count: counts[type] ?? 0 };
+}
+
+describe('DEFAULT_PATTERNS', () => {
+  it('contains exactly the 12 documented patterns from §8.1', () => {
+    const expected = [
+      'anthropic_key',
+      'openai_key',
+      'aws_access_key',
+      'aws_secret_key',
+      'github_pat',
+      'github_oauth',
+      'github_app',
+      'slack_token',
+      'private_key',
+      'jwt',
+      'google_api_key',
+      'stripe_key',
+    ];
+    expect(DEFAULT_PATTERNS.map((p) => p.type)).toEqual(expected);
+  });
+
+  it('all default patterns use the global flag', () => {
+    for (const p of DEFAULT_PATTERNS) {
+      expect(p.regex.flags).toContain('g');
+    }
+  });
+});
+
+describe('default pattern: anthropic_key', () => {
+  it('positive: matches sk-ant-<40+ chars>', () => {
+    const sample = `prefix sk-ant-${'A'.repeat(50)}_-abc suffix`;
+    const r = runOne('anthropic_key', sample);
+    expect(r.output).toContain('<REDACTED:anthropic_key>');
+    expect(r.count).toBe(1);
+  });
+  it('negative: does not match sk-ant- with too few chars', () => {
+    const r = runOne('anthropic_key', `sk-ant-${'A'.repeat(10)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: openai_key', () => {
+  it('positive: matches classic sk- key', () => {
+    const r = runOne('openai_key', `key=sk-${'A'.repeat(48)}`);
+    expect(r.count).toBe(1);
+    expect(r.output).toContain('<REDACTED:openai_key>');
+  });
+  it('positive: matches sk-proj- variant', () => {
+    const r = runOne('openai_key', `sk-proj-${'B'.repeat(45)}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: does not match sk- with too few chars', () => {
+    const r = runOne('openai_key', `sk-${'A'.repeat(10)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: aws_access_key', () => {
+  it('positive: matches AKIA + 16 uppercase alnum', () => {
+    const r = runOne('aws_access_key', 'token=AKIAIOSFODNN7EXAMPLE rest');
+    expect(r.count).toBe(1);
+    expect(r.output).toContain('<REDACTED:aws_access_key>');
+  });
+  it('negative: does not match lowercase or wrong prefix', () => {
+    const r = runOne('aws_access_key', 'akiaiosfodnn7example BKIAIOSFODNN7EXAMPLE');
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: aws_secret_key (aggressive)', () => {
+  // KNOWN FALSE-POSITIVE PRONE per §8.1: any 40-char base64-ish run with non-alnum
+  // boundaries gets redacted. Trade-off: harmless over-redaction vs. leaking secrets.
+  it('positive: matches a 40-char base64-ish run at boundaries', () => {
+    const secret = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+    expect(secret).toHaveLength(40);
+    const r = runOne('aws_secret_key', `secret="${secret}" end`);
+    expect(r.count).toBe(1);
+    expect(r.output).toContain('<REDACTED:aws_secret_key>');
+  });
+  it('known false positive: a benign 40-char alnum string also gets redacted', () => {
+    // Documented limitation: any 40-char alnum-ish blob between non-alnum chars is
+    // treated as a secret. Acceptable per §8.1.
+    const benign = 'a'.repeat(40);
+    const r = runOne('aws_secret_key', `value="${benign}"`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: 39-char run does not match', () => {
+    const r = runOne('aws_secret_key', `value="${'a'.repeat(39)}"`);
+    expect(r.count).toBe(0);
+  });
+  it('negative: 40-char run with alnum neighbors does not match (boundary check)', () => {
+    const r = runOne('aws_secret_key', `Z${'a'.repeat(40)}Z`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: github_pat', () => {
+  it('positive: ghp_ + 36 alnum', () => {
+    const r = runOne('github_pat', `tok=ghp_${'A'.repeat(36)} more`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: wrong length', () => {
+    const r = runOne('github_pat', `ghp_${'A'.repeat(20)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: github_oauth', () => {
+  it('positive: gho_ + 36 alnum', () => {
+    const r = runOne('github_oauth', `gho_${'B'.repeat(36)}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: wrong prefix (ghp_)', () => {
+    const r = runOne('github_oauth', `ghp_${'B'.repeat(36)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: github_app', () => {
+  it('positive: ghu_ + 36 alnum', () => {
+    const r = runOne('github_app', `ghu_${'C'.repeat(36)}`);
+    expect(r.count).toBe(1);
+  });
+  it('positive: ghs_ + 36 alnum', () => {
+    const r = runOne('github_app', `ghs_${'D'.repeat(36)}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: ghr_ is not an app token', () => {
+    const r = runOne('github_app', `ghr_${'C'.repeat(36)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: slack_token', () => {
+  it('positive: matches xoxb- bot token', () => {
+    const r = runOne('slack_token', 'xoxb-1234567890-abcdef-XYZ');
+    expect(r.count).toBe(1);
+  });
+  it('negative: xoxz- is not a known prefix', () => {
+    const r = runOne('slack_token', 'xoxz-1234567890-abcdef');
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: private_key', () => {
+  it('positive: matches a PEM RSA private key block', () => {
+    const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj\nfoo\n-----END RSA PRIVATE KEY-----';
+    const r = runOne('private_key', `header\n${pem}\nfooter`);
+    expect(r.count).toBe(1);
+    expect(r.output).toContain('<REDACTED:private_key>');
+  });
+  it('negative: PUBLIC KEY block is not redacted', () => {
+    const pem = '-----BEGIN PUBLIC KEY-----\nMIIBOg\n-----END PUBLIC KEY-----';
+    const r = runOne('private_key', pem);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: jwt', () => {
+  it('positive: three base64url segments separated by dots', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signaturePart_-abcDEF';
+    const r = runOne('jwt', `auth=${jwt}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: missing the eyJ prefix on second segment', () => {
+    const r = runOne('jwt', 'eyJabc.notajwt.sig');
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: google_api_key', () => {
+  it('positive: AIza + 35 alnum/_-', () => {
+    const r = runOne('google_api_key', `key=AIza${'a'.repeat(35)}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: wrong prefix', () => {
+    const r = runOne('google_api_key', `BIza${'a'.repeat(35)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('default pattern: stripe_key', () => {
+  it('positive: sk_test_ key', () => {
+    const r = runOne('stripe_key', `stripe=sk_test_${'A'.repeat(30)}`);
+    expect(r.count).toBe(1);
+  });
+  it('positive: pk_live_ key', () => {
+    const r = runOne('stripe_key', `pk_live_${'B'.repeat(24)}`);
+    expect(r.count).toBe(1);
+  });
+  it('negative: sk_demo_ is not a valid env', () => {
+    const r = runOne('stripe_key', `sk_demo_${'A'.repeat(30)}`);
+    expect(r.count).toBe(0);
+  });
+});
+
+describe('redact: counts accuracy with mixed JSONL', () => {
+  it('counts each pattern type exactly across multiple lines', () => {
+    const lines = [
+      `{"text":"key1=sk-ant-${'A'.repeat(45)}"}`,
+      `{"text":"key2=sk-ant-${'B'.repeat(50)}"}`,
+      `{"text":"aws=AKIAIOSFODNN7EXAMPLE"}`,
+      `{"text":"gh=ghp_${'C'.repeat(36)} other=ghp_${'D'.repeat(36)}"}`,
+      `{"text":"google=AIza${'e'.repeat(35)}"}`,
+      `{"text":"no secrets here"}`,
+    ];
+    const jsonl = lines.join('\n');
+    const { output, counts } = redact(jsonl, DEFAULT_PATTERNS);
+
+    expect(counts['anthropic_key']).toBe(2);
+    expect(counts['aws_access_key']).toBe(1);
+    expect(counts['github_pat']).toBe(2);
+    expect(counts['google_api_key']).toBe(1);
+    // Every default pattern type should be present in counts (zero or more).
+    for (const p of DEFAULT_PATTERNS) {
+      expect(counts).toHaveProperty(p.type);
+    }
+    expect(output).not.toContain('sk-ant-');
+    expect(output).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(output).not.toContain('ghp_');
+  });
+
+  it('returns input unchanged and zero counts when nothing matches', () => {
+    const jsonl = '{"text":"clean line"}\n{"text":"also clean"}';
+    const { output, counts } = redact(jsonl, DEFAULT_PATTERNS);
+    expect(output).toBe(jsonl);
+    for (const p of DEFAULT_PATTERNS) {
+      expect(counts[p.type]).toBe(0);
+    }
+  });
+});
+
+describe('redact: pattern order matters (first wins)', () => {
+  it('first registered pattern consumes a string before later patterns see it', () => {
+    const jsonl = 'value=sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    // anthropic_key is listed before openai_key — both could in principle match the
+    // same prefix, but anthropic claims it first by being earlier in DEFAULT_PATTERNS.
+    const { counts } = redact(jsonl, DEFAULT_PATTERNS);
+    expect(counts['anthropic_key']).toBe(1);
+    expect(counts['openai_key']).toBe(0);
+  });
+
+  it('reversing order changes which pattern wins', () => {
+    const jsonl = 'value=sk-ant-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const reversed = [...DEFAULT_PATTERNS].reverse();
+    const { counts } = redact(jsonl, reversed);
+    // openai_key appears earlier in the reversed list and matches sk-...
+    expect(counts['openai_key']).toBe(1);
+    expect(counts['anthropic_key']).toBe(0);
+  });
+});
+
+describe('compileUserPattern', () => {
+  it('compiles a valid pattern with the global flag', () => {
+    const p = compileUserPattern('custom', 'FOO_[A-Z]+');
+    expect(p.type).toBe('custom');
+    expect(p.regex.flags).toContain('g');
+    const r = redact('FOO_BAR FOO_BAZ', [p]);
+    expect(r.counts['custom']).toBe(2);
+    expect(r.output).toBe('<REDACTED:custom> <REDACTED:custom>');
+  });
+
+  it('throws ValidationError on a malformed regex', () => {
+    expect(() => compileUserPattern('bad', '([')).toThrow(ValidationError);
+    try {
+      compileUserPattern('bad', '([');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).code).toBe('VALIDATION_ERROR');
+      expect((err as ValidationError).message).toContain('bad');
+    }
+  });
+
+  it('user-supplied pattern composes cleanly with defaults', () => {
+    const user = compileUserPattern('internal', 'ACME_INTERNAL_[A-Z0-9]+');
+    const patterns = [...DEFAULT_PATTERNS, user];
+    const jsonl = 'mix=ACME_INTERNAL_ABC123 and AKIAIOSFODNN7EXAMPLE';
+    const { output, counts } = redact(jsonl, patterns);
+    expect(counts['internal']).toBe(1);
+    expect(counts['aws_access_key']).toBe(1);
+    expect(output).toContain('<REDACTED:internal>');
+    expect(output).toContain('<REDACTED:aws_access_key>');
+  });
+});
