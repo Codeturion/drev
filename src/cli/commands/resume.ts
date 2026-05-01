@@ -103,7 +103,18 @@ export async function runResume(query: string, opts: ResumeOptions): Promise<voi
         await gitOps.stashPush(destRoot, `drev resume ${displayName}`);
         stashed = true;
       }
-      await gitOps.checkout(destRoot, driftSha);
+      try {
+        await gitOps.checkout(destRoot, driftSha);
+      } catch (err) {
+        // Without this hint the user sees a git error and assumes their dirty
+        // changes were lost; in fact they're sitting in the auto-stash.
+        if (stashed) {
+          warn(
+            'Checkout failed after auto-stash. Your changes are in the stash; recover with: git stash pop',
+          );
+        }
+        throw err;
+      }
       const recovery = stashed
         ? 'Recover with: git checkout - && git stash pop'
         : 'Recover with: git checkout -';
