@@ -240,6 +240,24 @@ describe('runInit clone-path collision', () => {
       expected,
     );
   });
+
+  it('with --reinit, reuses an existing clone instead of erroring', async () => {
+    const home = await withFakeHome();
+    const existing = join(home, '.drev', 'repos', 'repo');
+    await mkdir(existing, { recursive: true });
+
+    await runInit('https://github.com/org/repo.git', { reinit: true });
+
+    // No fresh clone: existing dir is reused.
+    expect(gitOps.clone).not.toHaveBeenCalled();
+    // pullRebase tried (best-effort) on the existing clone.
+    expect(gitOps.pullRebase).toHaveBeenCalledWith(existing);
+    // default_repo set to the existing path.
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['default_repo']).toBe(existing);
+  });
 });
 
 describe('runInit happy path (fresh remote, no .drev/)', () => {

@@ -71,7 +71,7 @@ export async function runInit(
       await runWizard(opts);
       break;
     case 'url':
-      await executeUrlFlow(mode.url, { name: opts.name });
+      await executeUrlFlow(mode.url, { name: opts.name, reinit: opts.reinit });
       break;
     case 'shorthand':
       await executeShorthandFlow(mode.shorthand, opts);
@@ -193,7 +193,7 @@ async function runWizard(opts: InitOptions): Promise<void> {
     'Got a Drev repo URL from your team? (paste it, or leave empty to create new): ',
   );
   if (pasted.length > 0) {
-    await executeUrlFlow(pasted, { name: opts.name });
+    await executeUrlFlow(pasted, { name: opts.name, reinit: opts.reinit });
     return;
   }
 
@@ -263,7 +263,7 @@ async function executeShorthandFlow(
     url = `https://github.com/${shorthand}.git`;
   }
 
-  await executeUrlFlow(url, { name: opts.name });
+  await executeUrlFlow(url, { name: opts.name, reinit: opts.reinit });
 }
 
 async function executeLocalFlow(opts: InitOptions): Promise<void> {
@@ -272,23 +272,25 @@ async function executeLocalFlow(opts: InitOptions): Promise<void> {
       ? opts.at
       : join(homedir(), '.drev', 'local-sessions.git');
 
-  if (await pathExists(barePath)) {
+  const bareExists = await pathExists(barePath);
+  if (bareExists && !opts.reinit) {
     throw new RepoError(
-      `local repo already exists at ${barePath}; remove it or pass --at <other>`,
+      `local repo already exists at ${barePath}; remove it, pass --at <other>, or pass --reinit to reuse it.`,
     );
   }
-
-  try {
-    await execFileAsync('git', ['init', '--bare', barePath], {
-      timeout: GH_TIMEOUT_MS,
-      windowsHide: true,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new RepoError(
-      `Failed to create local bare repo at ${barePath}: ${msg}`,
-      { cause: err },
-    );
+  if (!bareExists) {
+    try {
+      await execFileAsync('git', ['init', '--bare', barePath], {
+        timeout: GH_TIMEOUT_MS,
+        windowsHide: true,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new RepoError(
+        `Failed to create local bare repo at ${barePath}: ${msg}`,
+        { cause: err },
+      );
+    }
   }
 
   const baseName = basename(barePath).replace(/\.git$/, '');
@@ -296,9 +298,15 @@ async function executeLocalFlow(opts: InitOptions): Promise<void> {
   const clonePath = join(homedir(), '.drev', 'repos', cloneName);
 
   if (await pathExists(clonePath)) {
-    throw new RepoError(
-      `drev is already initialized at ${clonePath}; use a different --name or remove that directory.`,
-    );
+    if (!opts.reinit) {
+      throw new RepoError(
+        `drev is already initialized at ${clonePath}; use a different --name, pass --reinit to reuse this clone, or remove the directory.`,
+      );
+    }
+    await reuseExistingClone(clonePath, baseName);
+    await writeDefaultRepo(clonePath);
+    printSuccess(clonePath);
+    return;
   }
 
   await cloneScaffoldAndPush(barePath, clonePath, baseName);
@@ -308,7 +316,7 @@ async function executeLocalFlow(opts: InitOptions): Promise<void> {
 
 async function executeUrlFlow(
   repoUrl: string,
-  opts: { name?: string },
+  opts: { name?: string; reinit?: boolean },
 ): Promise<void> {
   validateUrl(repoUrl);
 
@@ -323,14 +331,31 @@ async function executeUrlFlow(
   const clonePath = join(homedir(), '.drev', 'repos', name);
 
   if (await pathExists(clonePath)) {
-    throw new RepoError(
-      `drev is already initialized at ${clonePath}; use a different --name or remove that directory.`,
-    );
+    if (!opts.reinit) {
+      throw new RepoError(
+        `drev is already initialized at ${clonePath}; use a different --name, pass --reinit to reuse this clone, or remove the directory.`,
+      );
+    }
+    await reuseExistingClone(clonePath, segment ?? name);
+    await writeDefaultRepo(clonePath);
+    printSuccess(clonePath);
+    return;
   }
 
   await cloneScaffoldAndPush(repoUrl, clonePath, segment ?? name);
   await writeDefaultRepo(clonePath);
   printSuccess(clonePath);
+}
+
+async function reuseExistingClone(clonePath: string, teamName: string): Promise<void> {
+  info(`Reusing existing clone at ${clonePath}.`);
+  try {
+    await gitOps.pullRebase(clonePath);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`pull --rebase failed; continuing with local state (${msg}).`);
+  }
+  await ensureScaffold(clonePath, teamName);
 }
 
 async function cloneScaffoldAndPush(

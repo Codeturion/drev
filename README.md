@@ -20,7 +20,7 @@ drev init <anything> --reinit       # repoint an existing setup
 ```
 Wizard: paste a teammate's URL (joiner) or hit Enter to create your own. Confirm `<your-gh-user>/drev-sessions` private with Y, or `n` to pick a different `<owner>/<name>`.
 
-By default, `drev init` also installs Claude Code hooks and a `drev` skill, and adds the current project to the auto-share whitelist (`auto_share_projects` in `~/.drev/config.yaml`). Auto-share is scoped — only sessions from whitelisted projects are shared. Pass `--no-auto-share` to skip the hook/skill install entirely; use `drev autoshare add` to whitelist additional projects.
+By default `drev init` installs Claude Code hooks + a `drev` skill and whitelists the current project for auto-share. Only whitelisted projects auto-share — scope is per-project, not global. `--no-auto-share` skips it entirely.
 
 ## Share
 
@@ -40,9 +40,20 @@ drev resume <name> --into /path     # explicit destination
 drev resume <name> --no-launch      # prepare without spawning
 ```
 
+## Auto-share
+
+```
+drev autoshare add | remove [path]   # toggle a project on/off the whitelist
+drev autoshare on | private | off    # mode: auto-team / auto-private / manual
+drev autoshare list | status         # what's enabled
+drev hooks install | uninstall       # arm or remove the Claude Code triggers
+```
+
+Inside Claude Code, the bundled skill routes "save this session as foo" to `drev share` automatically.
+
 ## Other commands
 
-`drev rename`, `drev mark`, `drev search`, `drev sync`, `drev scrub`, `drev hooks install`. All have `--help`.
+`drev rename`, `drev mark`, `drev search`, `drev sync`, `drev scrub`. All have `--help`.
 
 ## License
 
