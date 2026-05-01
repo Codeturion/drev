@@ -54,9 +54,10 @@ The bundled skill teaches Claude to recognize what you mean, so you talk to it n
 |---|---|
 | *"save this session as auth-fix"* | `drev share --name auth-fix` |
 | *"what sessions are available?"* | `drev list` |
-| *"resume the auth-fix one"* | `drev resume auth-fix` |
+| *"search for auth bug"* | `drev search "auth bug"` |
+| *"mark the foo one private"* | `drev mark foo --private` |
 
-No commands to memorize. No new terminal.
+Sharing, listing, searching, renaming, marking, scrubbing all run inside the active session. **Resume is the exception:** it has to spawn a fresh `claude --resume` as a subprocess that takes over the terminal, and Claude's Bash tool doesn't have an interactive TTY to hand over. To resume someone else's session, open a new terminal and run `drev resume <name>` there.
 
 ## Use it from the terminal
 

@@ -14,27 +14,37 @@ type HookEvent = (typeof HOOK_EVENTS)[number];
 
 export const DREV_SKILL_CONTENT = `---
 name: drev
-description: Share, list, resume, or manage Claude Code sessions through Drev. Use when the user wants to save, share, hand off, or back up the current session, or to see, find, or resume someone else's shared session.
+description: Share, list, search, rename, mark, or back up Claude Code sessions through Drev. Use when the user wants to save, share, hand off, or manage the current session, or to find someone else's shared session. Resume is excluded; that command spawns a fresh \`claude --resume\` subprocess and must be run in a separate terminal, not from inside an active session.
 ---
 
-# Drev — Claude Code session sharing
+# Drev: Claude Code session sharing
 
 Drev shares Claude Code session JSONLs through a Git repo. Commands run via the Bash tool. Drev must be on PATH; if not, suggest \`npm install -g drev\`.
 
-## Common actions
+## Commands you can run from inside a session
 
 **Share this session.** User says "save this", "share this", "hand it off", or names a target.
-- Run \`drev share --name <slug>\` via Bash. Derive the slug from session topic — short, descriptive, lowercase, dashes (drev sanitizes anyway).
+- Run \`drev share --name <slug>\` via Bash. Derive the slug from session topic: short, descriptive, lowercase, dashes (drev sanitizes anyway).
 - Confirm the slug with the user if ambiguous.
 - For private/personal: \`drev backup --name <slug>\`.
 
 **List what's available.** User asks what sessions exist.
 - \`drev list\` (or with filters: \`--mine\`, \`--team\`, \`--days 7\`, \`--user alice\`).
 
-**Resume a shared session.** User says "resume <name>", "pick up <name>".
-- \`drev resume <name-or-id>\` from inside the destination project root, or with \`--into <path>\`.
+**Search.** User asks "find sessions about X" or similar.
+- \`drev search "<query>"\`.
 
-**Search / rename / mark / sync / scrub.** Use the matching subcommand. Run \`drev <cmd> --help\` first if uncertain.
+**Rename / mark / scrub / sync.** Use the matching subcommand on a session the user owns. Run \`drev <cmd> --help\` first if uncertain.
+
+## Resume: tell the user to run it themselves
+
+If the user asks to resume a session ("resume <name>", "pick up <name>", "load <name>"):
+
+1. Optionally run \`drev list\` first to confirm the name and show the user what's available.
+2. Tell the user this exact instruction (substitute the right name): "Open a new terminal in your destination project and run \`drev resume <name>\`. I can't run resume from inside this session because it has to launch a fresh Claude Code, which needs its own terminal."
+3. If the user wants the file prepared in advance, you can run \`drev resume <name> --no-launch\` from inside the session. Drev will write the JSONL to the right path and print the manual \`claude --resume <id>\` command. Pass that command back to the user.
+
+Do NOT run \`drev resume\` without \`--no-launch\` from inside an active session: it will fail or hang because the spawned \`claude\` cannot acquire a TTY.
 
 ## Common errors
 
@@ -43,7 +53,7 @@ Drev shares Claude Code session JSONLs through a Git repo. Commands run via the 
 
 ## Scope
 
-Don't auto-share without explicit user intent — auto-share is handled separately by hooks. This skill is for explicit user-driven actions during a session.
+Don't auto-share without explicit user intent. Auto-share is handled separately by hooks; this skill is for explicit user-driven actions during a session.
 
 ## Auto-share follow-up
 
@@ -208,7 +218,7 @@ async function uninstallHooks(): Promise<{ existed: boolean }> {
         continue;
       }
       if (Array.isArray(group.hooks) && group.hooks.length === 0) {
-        // Group with empty hooks — drop.
+        // Group with empty hooks: drop.
         continue;
       }
       filtered.push(group);

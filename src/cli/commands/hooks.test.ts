@@ -353,7 +353,7 @@ describe('skill install/uninstall', () => {
     const content = await readFile(file, 'utf8');
     expect(content).toBe(DREV_SKILL_CONTENT);
     expect(content).toMatch(/^---\nname: drev/);
-    expect(content).toContain('Drev — Claude Code session sharing');
+    expect(content).toContain('Drev: Claude Code session sharing');
   });
 
   it('SKILL.md content includes the Auto-share follow-up section', () => {
