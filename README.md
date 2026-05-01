@@ -22,6 +22,8 @@ Wizard: paste a teammate's URL (joiner) or hit Enter to create your own. Confirm
 
 By default `drev init` installs Claude Code hooks + a `drev` skill and whitelists the current project for auto-share. Only whitelisted projects auto-share — scope is per-project, not global. `--no-auto-share` skips it entirely.
 
+**GitLab, Bitbucket, self-hosted, etc.:** drev's auto-create only knows GitHub (via `gh`). Pre-create your repo on the host's UI/CLI, then `drev init <git-url>`. Everything after init (`share`, `resume`, `list`, `sync`, `autoshare-sweep`, …) is pure `git` — works against any remote.
+
 ## Share
 
 ```

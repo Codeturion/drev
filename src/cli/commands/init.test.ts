@@ -567,7 +567,7 @@ describe('runInit SHORTHAND mode', () => {
 
     await expect(runInit('foo/bar', {})).rejects.toMatchObject({
       name: 'RepoError',
-      message: expect.stringMatching(/full-url.*--local|--local.*full-url/i),
+      message: expect.stringMatching(/(full-url|full-git-url|<git-url>).*--local|--local.*(full-url|full-git-url|<git-url>)/i),
     });
   });
 

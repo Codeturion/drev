@@ -173,7 +173,7 @@ function parseMode(target: string | undefined, opts: InitOptions): Mode {
 async function runWizard(opts: InitOptions): Promise<void> {
   if (!(await gitOps.isAvailable('gh'))) {
     throw new RepoError(
-      "Drev's setup wizard needs the GitHub CLI ('gh'). Install: https://cli.github.com — or run 'drev init <url>' / 'drev init --local'.",
+      "Drev's setup wizard needs the GitHub CLI ('gh'). For other Git hosts (GitLab, Bitbucket, self-hosted, …), pre-create the repo and run 'drev init <full-git-url>'. For offline use, run 'drev init --local'. To install gh: https://cli.github.com.",
     );
   }
 
@@ -224,7 +224,7 @@ async function executeShorthandFlow(
 ): Promise<void> {
   if (!(await gitOps.isAvailable('gh'))) {
     throw new RepoError(
-      `Drev needs the GitHub CLI ('gh') to resolve '${shorthand}'. Install: https://cli.github.com — or run 'drev init <full-url>' / 'drev init --local'.`,
+      `The 'owner/name' shorthand resolves via the GitHub CLI ('gh'), which is not on PATH. For GitLab / Bitbucket / self-hosted, run 'drev init <full-git-url>' instead. For offline use, 'drev init --local'. To install gh: https://cli.github.com.`,
     );
   }
 
