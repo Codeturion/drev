@@ -64,7 +64,7 @@ You finish a debugging session in `~/work/inventory-app`. Inside Claude Code, yo
 
 > save this session as inventory-sync-fix
 
-Claude runs `drev share --name inventory-sync-fix` for you. Drev redacts secrets, writes the session into your team repo at `users/fuat/2026-05-01-inventory-sync-fix/`, and pushes to GitHub.
+Claude runs `drev share inventory-sync-fix` for you. Drev redacts secrets, writes the session into your team repo at `users/fuat/2026-05-01-inventory-sync-fix/`, and pushes to GitHub.
 
 Next morning, your teammate picks it up. From their machine, in their copy of the project:
 
@@ -83,7 +83,8 @@ The bundled skill teaches Claude to recognize what you mean, so you talk to it n
 
 | You say | Claude runs |
 |---|---|
-| *"save this session as auth-fix"* | `drev share --name auth-fix` |
+| *"save this session"* | `drev share` |
+| *"save this session as auth-fix"* | `drev share auth-fix` |
 | *"what sessions are available?"* | `drev list` |
 | *"search for auth bug"* | `drev search "auth bug"` |
 | *"mark the foo one private"* | `drev mark foo --private` |
@@ -93,7 +94,8 @@ Sharing, listing, searching, renaming, marking, scrubbing all run inside the act
 ## <img src="./assets/icons/from-terminal.png" alt="" width="40" align="absmiddle"> Use it from the terminal
 
 ```bash
-drev share --name auth-fix          # share the most recent session
+drev share                          # share the most recent session (no name)
+drev share auth-fix                 # ...with a name (or --name auth-fix)
 drev list                           # see what's available
 drev resume auth-fix                # rewrites paths, places file, spawns Claude Code
 ```
@@ -147,7 +149,7 @@ Each command supports `--help` for the full option list.
 | Command | Purpose |
 |---|---|
 | `drev init` | one-time setup |
-| `drev share [--name N] [--auto]` | share the most recent session (`--auto` skips prompts; non-TTY contexts auto-detect) |
+| `drev share [name] [--auto]` | share the most recent session; positional `name` is optional (alias of `--name`); `--auto` skips prompts; non-TTY contexts auto-detect |
 | `drev backup --name N` | private backup of the most recent session |
 | `drev list [filters]` | browse available sessions (filters: `--mine`, `--team`, `--days N`, `--user X`, …) |
 | `drev resume <name-or-id> [--force] [--checkout]` | pull, rewrite paths, and resume a shared session |

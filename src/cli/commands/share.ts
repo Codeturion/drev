@@ -50,22 +50,27 @@ export interface ExecuteShareResult {
 
 export function register(program: Command): void {
   program
-    .command('share')
+    .command('share [name]')
     .description('Share the most recent (or selected) Claude Code session to the team repo.')
-    .option('--name <name>', 'name for the shared session (sanitized)')
+    .option('--name <name>', 'name for the shared session (sanitized; alias of the positional)')
     .option('--private', 'mark this share as private (overrides repo default visibility)')
     .option('--session-id <id>', 'share a specific session id instead of the most recent')
     .option('--auto', 'skip all interactive prompts (force non-interactive mode)')
     .action(
-      async (opts: {
-        name?: string;
-        private?: boolean;
-        sessionId?: string;
-        auto?: boolean;
-      }) => {
+      async (
+        positionalName: string | undefined,
+        opts: {
+          name?: string;
+          private?: boolean;
+          sessionId?: string;
+          auto?: boolean;
+        },
+      ) => {
         try {
+          // Positional and --name are equivalent; positional wins if both differ.
+          const resolvedName = positionalName ?? opts.name;
           await executeShare({
-            ...(opts.name !== undefined ? { name: opts.name } : {}),
+            ...(resolvedName !== undefined ? { name: resolvedName } : {}),
             ...(opts.sessionId !== undefined ? { sessionId: opts.sessionId } : {}),
             ...(opts.private ? { visibility: 'private' as const } : {}),
             purpose: 'share',

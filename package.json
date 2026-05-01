@@ -1,6 +1,6 @@
 {
   "name": "@codeturion/drev",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Make Claude Code sessions portable: share them with friends and teammates, or resume them on any machine. Bin: `drev`.",
   "type": "module",
   "license": "MIT",
