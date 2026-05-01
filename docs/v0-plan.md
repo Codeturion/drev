@@ -13,11 +13,22 @@ This document is the operational layer on top of the spec. Each task lives in `T
 ## Status
 
 - ✓ §14.1 mandatory experiment (path-rewrite + `claude --resume`) — passed 2026-05-01
-- ✓ Scaffold (package.json, tsconfig, tsup, vitest, src/ skeleton, git, GitHub) — commit 1
-- ☐ Phase A — foundations
-- ☐ Phase B — stateful modules
-- ☐ Phase C — commands
-- ☐ Phase D — ship gates
+- ✓ Scaffold (package.json, tsconfig, tsup, vitest, src/ skeleton, git, GitHub)
+- ✓ Phase A — foundations (T01-T05; 123 tests)
+- ✓ Phase B — stateful modules (T06-T11; 200 tests)
+- ✓ Phase C — commands (T12-T24; 155 tests + init wizard refresh)
+- ▶ Phase D — ship gates (T25 ✓, T26 ✓, T27 awaits real cross-machine run, T28 awaits `npm publish`)
+
+**Cumulative test count:** 499 across 27 files. **Tag:** `v0.1.0` pushed.
+
+## Picking up where we left off
+
+Two user-driven steps remain:
+
+1. **Run T27 — cross-machine manual test.** Procedure in [`docs/MANUAL_TESTS.md`](MANUAL_TESTS.md) Test 2. Append the run record to that file's run log when done.
+2. **Run T28 — `npm publish`.** From `F:\Nuts Projects\drev`: `npm login`, then `npm publish --access public`. Verify with `npm view drev` and a fresh-install smoke test.
+
+Everything else is committed, pushed, tagged, and tested.
 
 ## Phases
 
