@@ -29,7 +29,7 @@ import {
   readSessionStats,
 } from '../../core/session.js';
 import type { SessionFiles, SessionStats } from '../../core/session.js';
-import { confirm, errorOut, info, spinner, warn } from '../ui.js';
+import { confirm, errorOut, info, isInteractive, spinner, warn } from '../ui.js';
 
 export interface ExecuteShareOptions {
   sessionId?: string;
@@ -54,15 +54,21 @@ export function register(program: Command): void {
     .option('--name <name>', 'name for the shared session (sanitized)')
     .option('--private', 'mark this share as private (overrides repo default visibility)')
     .option('--session-id <id>', 'share a specific session id instead of the most recent')
+    .option('--auto', 'skip all interactive prompts (force non-interactive mode)')
     .action(
-      async (opts: { name?: string; private?: boolean; sessionId?: string }) => {
+      async (opts: {
+        name?: string;
+        private?: boolean;
+        sessionId?: string;
+        auto?: boolean;
+      }) => {
         try {
           await executeShare({
             ...(opts.name !== undefined ? { name: opts.name } : {}),
             ...(opts.sessionId !== undefined ? { sessionId: opts.sessionId } : {}),
             ...(opts.private ? { visibility: 'private' as const } : {}),
             purpose: 'share',
-            interactive: true,
+            interactive: !opts.auto && isInteractive(),
           });
         } catch (err) {
           if (err instanceof Error) {
@@ -159,20 +165,24 @@ export async function executeShare(
   }
 
   // 7. First-share confirmation (§8.4) — must happen BEFORE any write.
+  // Non-interactive callers (Claude's Bash tool, scripts, --auto) still see the
+  // redaction summary as info but skip the prompt and proceed (T30).
   const email = await currentUserEmail();
   const username = shortUsername(email);
-  if (interactive && (await isFirstShare(repoDir, username))) {
+  if (await isFirstShare(repoDir, username)) {
     showRedactionSummary(repoDir, totalCounts);
-    const ok = await confirm('Continue?');
-    if (!ok) {
-      info('Share cancelled.');
-      return {
-        id: stats.id,
-        name: resolvedName ?? shortId,
-        shortId,
-        redactionCounts: totalCounts,
-        pushed: false,
-      };
+    if (interactive) {
+      const ok = await confirm('Continue?');
+      if (!ok) {
+        info('Share cancelled.');
+        return {
+          id: stats.id,
+          name: resolvedName ?? shortId,
+          shortId,
+          redactionCounts: totalCounts,
+          pushed: false,
+        };
+      }
     }
   }
 

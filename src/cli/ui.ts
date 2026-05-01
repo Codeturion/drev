@@ -1,8 +1,13 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import readline from 'node:readline';
+import { ConfigError } from '../lib/errors.js';
 
 const CELL_MAX = 60;
+
+export function isInteractive(): boolean {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true;
+}
 
 export function info(msg: string): void {
   process.stdout.write(`${chalk.green('✓')} ${msg}\n`);
@@ -66,7 +71,14 @@ export function table(rows: Array<Record<string, string>>, columns: string[]): s
   return lines.join('\n');
 }
 
-export async function confirm(prompt: string): Promise<boolean> {
+export interface ConfirmOptions {
+  defaultIfNonInteractive?: boolean;
+}
+
+export async function confirm(prompt: string, opts?: ConfirmOptions): Promise<boolean> {
+  if (!isInteractive()) {
+    return opts?.defaultIfNonInteractive ?? false;
+  }
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await new Promise<string>((resolve) => {
@@ -80,6 +92,11 @@ export async function confirm(prompt: string): Promise<boolean> {
 }
 
 export async function prompt(message: string): Promise<string> {
+  if (!isInteractive()) {
+    throw new ConfigError(
+      'Cannot prompt for input: stdin is not a TTY. Pass the equivalent CLI flag instead.',
+    );
+  }
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await new Promise<string>((resolve) => {

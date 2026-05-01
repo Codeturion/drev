@@ -8,7 +8,7 @@ import * as gitOps from '../../core/git-ops.js';
 import { ensureScaffold } from '../../core/repo.js';
 import { readUserConfig, writeUserConfig } from '../../core/config.js';
 import { RepoError } from '../../lib/errors.js';
-import { confirm, info, prompt, spinner, warn } from '../ui.js';
+import { confirm, info, isInteractive, prompt, spinner, warn } from '../ui.js';
 import { runInstall as runHooksInstall } from './hooks.js';
 
 const execFileAsync = promisify(execFile);
@@ -171,6 +171,11 @@ function parseMode(target: string | undefined, opts: InitOptions): Mode {
 }
 
 async function runWizard(opts: InitOptions): Promise<void> {
+  if (!isInteractive()) {
+    throw new RepoError(
+      'drev init wizard requires an interactive terminal. Pass a URL, an owner/name shorthand, or --local.',
+    );
+  }
   if (!(await gitOps.isAvailable('gh'))) {
     throw new RepoError(
       "Drev's setup wizard needs the GitHub CLI ('gh'). For other Git hosts (GitLab, Bitbucket, self-hosted, …), pre-create the repo and run 'drev init <full-git-url>'. For offline use, run 'drev init --local'. To install gh: https://cli.github.com.",
