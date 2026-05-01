@@ -105,11 +105,12 @@ describe('createLogger', () => {
   });
 
   it('does not throw if the log directory cannot be created or read', async () => {
-    // Point at an obviously bogus, non-creatable path on Windows; on POSIX use a NUL-ish marker.
-    // On both platforms we simply expect best-effort silence — no rejection.
+    // Pick a path that fails the mkdir fast (no kernel-level retries or virtual-fs quirks).
+    // /dev/null/* on POSIX returns ENOTDIR instantly because /dev/null is a char device.
+    // Z:\... on Windows returns ENOENT instantly since drive Z is not mounted in CI.
     const bogus = process.platform === 'win32'
-      ? 'Z:\\\\definitely\\\\not\\\\writable\\\\drev-tests'
-      : '/proc/definitely/not/writable/drev-tests';
+      ? 'Z:\\definitely\\not\\writable\\drev-tests'
+      : '/dev/null/drev-tests';
     const log = createLogger('test', { dir: bogus, now: () => new Date('2026-04-30T12:00:00Z') });
     await expect(log.info('should not throw')).resolves.toBeUndefined();
   });

@@ -1,50 +1,71 @@
 # T28: npm publish to npm
 
 **Phase:** D · **Depends on:** T25, T26 (T27 ideally complete)
-**Architecture refs:** §12.1, §16 DoD
+**Architecture refs:** §11.1, §16 DoD
+**Status:** ✅ Done — published as `@codeturion/drev@0.1.2` on 2026-05-01.
 
-## Scope
+## Outcome
 
-Publish `drev` to npm under the MIT license, version `0.1.0` (first user-facing release).
-
-### Pre-flight
-
-- Bump `package.json` version to `0.1.0`
-- Verify `files` array in package.json includes `dist`, `README.md`, `LICENSE` only (no source, no tests, no node_modules)
-- Verify `bin` map points to built files in `dist/`
-- Run `npm run build` clean, verify dist contents
-- Run `npm pack --dry-run` and inspect the file list, confirm nothing leaks
-- Tag the commit: `git tag v0.1.0 && git push --tags`
-- Record demo video (per §16 DoD); upload + link in README
-
-### Publish
+The unscoped `drev` name is held by `arunoda/drev` (a dormant Distributed Redis EventEmitter). `drev-cli` was rejected by npm's similarity check ("too similar to existing package del-cli"). Settled on the scoped name `@codeturion/drev`. Bin name remains `drev` so users still type `drev share`, only the install line changes.
 
 ```
-npm login
-npm publish --access public
+npm install -g @codeturion/drev
 ```
 
-### Post-flight
+Published versions: only `0.1.2` (0.1.0 and 0.1.1 were burned during the renaming dance and never made it to npm). Future versions: bump `package.json`, tag `vX.Y.Z`, push the tag, GitHub Actions does the rest (see `.github/workflows/publish.yml`).
 
-- Verify global install: `npm install -g drev` on a fresh machine; run `drev --version`
-- Verify `drev init` works against a fresh test repo
-- Open public-launch announcement (if/when ready), timing user's call
+## Pre-flight (kept for reference)
 
-## Files
+- ✅ Bump `package.json` version
+- ✅ Verify `files` array includes `dist`, `README.md`, `LICENSE` only
+- ✅ Verify `bin` map points to built files in `dist/`
+- ✅ `npm run build` clean
+- ✅ `npm publish --dry-run` inspected, no leaks
+- ✅ Tag pushed to GitHub
+- ⏳ Demo video (deferred; not blocking)
 
-- Update `package.json` (version)
-- Update `README.md` (replace install line if needed; add demo video link)
-- Tag in git
+## Automated publishing (GitHub Actions + npm Trusted Publishing)
+
+`.github/workflows/publish.yml` runs on tag pushes matching `v*` (and via manual `workflow_dispatch`). It checks out, installs, typechecks, tests, verifies the tag version matches `package.json`, then publishes with `npm publish --access public`.
+
+Authentication uses npm **Trusted Publishing** (OIDC), not a long-lived access token. Each workflow run exchanges its short-lived GitHub OIDC token for a one-shot npm token cryptographically tied to this repo + workflow file. No secrets to rotate, no token to leak.
+
+### One-time setup on npmjs.com
+
+1. Go to https://www.npmjs.com/package/@codeturion/drev → **Settings** → **Trusted Publishers**
+2. Click **Add Trusted Publisher**
+3. Fill in:
+   - **Publisher:** GitHub Actions
+   - **Repository owner:** `Codeturion`
+   - **Repository name:** `drev`
+   - **Workflow filename:** `publish.yml`
+   - **Environment name:** (leave empty)
+4. Save
+
+That's it. No NPM_TOKEN repo secret needed; in fact, having one would be wasted attack surface.
+
+After setup, future releases are: bump version → commit → `git tag vX.Y.Z` → `git push --follow-tags`. The workflow handles the rest.
+
+### Why this beats access tokens
+
+- No token rotation calendar reminders
+- Compromised CI logs can't leak a reusable secret (OIDC tokens are scoped to a single workflow run, expire in minutes)
+- npm prints a "Verified Publisher" badge on the package page
+- npm explicitly recommends this over granular tokens for CI/CD
+
+### Provenance
+
+`--provenance` is skipped while the repo is private (npm requires public repos for provenance attestation). When the repo is opened up, add `--provenance` to the publish command. The workflow already has the `id-token: write` permission for it.
 
 ## Acceptance
 
-- `npm install -g drev` succeeds and produces a working binary
-- Published package size <2MB
-- Tag `v0.1.0` exists on GitHub
-- Demo video linked in README
+- ✅ `npm install -g @codeturion/drev` succeeds and produces a working binary
+- ✅ Published package size <2MB (actual: 37.6 kB / 145.7 kB unpacked)
+- ✅ Tag `v0.1.2` exists on GitHub
+- ⏳ Demo video linked in README (deferred)
+- ✅ GitHub Actions workflow in place for future releases
 
 ## Out of scope
 
-- Automated publishing via GitHub Actions, set up in v0.1
-- Deprecating prior versions, there are none
+- Deprecating prior versions, there are none on npm (the 0.1.0 and 0.1.1 git tags are pre-publish snapshots only)
 - Claude Code plugin marketplace package, that's v0.1 per §14.3

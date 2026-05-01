@@ -17,9 +17,9 @@ This document is the operational layer on top of the spec. Each task lives in `T
 - ✓ Phase A, foundations (T01-T05; 123 tests)
 - ✓ Phase B, stateful modules (T06-T11; 200 tests)
 - ✓ Phase C, commands (T12-T24; 155 tests + init wizard refresh)
-- ▶ Phase D, ship gates (T25 ✓, T26 ✓, T27 awaits real cross-machine run, T28 awaits `npm publish`)
+- ✓ Phase D, ship gates (T25 ✓, T26 ✓, T27 ✓ Windows↔Mac both directions, T28 ✓ published as `@codeturion/drev@0.1.2`)
 
-**Cumulative test count:** 549 across 28 files. **Tag:** `v0.1.0` pushed.
+**Cumulative test count:** 572 across 28 files. **Tags:** `v0.1.0`, `v0.1.1`, `v0.1.2` pushed. **Published to npm:** `@codeturion/drev@0.1.2`. Future releases automated via `.github/workflows/publish.yml` (tag push → CI → publish).
 
 ## Known issues found during v0.1.0 testing
 
@@ -28,14 +28,14 @@ Logged as backlog tasks; address before tagging v0.1.1:
 - **[T29](../TASKS/T29-fix-sessionend-reliability.md)**, `SessionEnd` hook doesn't reliably fire. Auto-share's headline UX depends on it; if it misses, sweep never runs. Need instrumentation + likely use absolute path in hook command + verify SessionStart fallback.
 - **[T30](../TASKS/T30-noninteractive-from-skill.md)**, `drev share` and the `drev init` wizard hang when stdin isn't a TTY (which is how Claude's Bash tool runs them, per the bundled skill flow). Need TTY detection in `ui.confirm` / `ui.prompt` and a clear non-interactive code path.
 
-## Picking up where we left off
+## v0 status
 
-Two user-driven steps remain:
+v0 is shipped. `@codeturion/drev@0.1.2` is live on npm; install with `npm install -g @codeturion/drev`. Future releases ride the GitHub Actions workflow at `.github/workflows/publish.yml`: bump version, tag `vX.Y.Z`, push, CI publishes.
 
-1. **Run T27, cross-machine manual test.** Procedure in [`docs/MANUAL_TESTS.md`](MANUAL_TESTS.md) Test 2. Append the run record to that file's run log when done.
-2. **Run T28, `npm publish`.** From `F:\Nuts Projects\drev`: `npm login`, then `npm publish --access public`. Verify with `npm view drev` and a fresh-install smoke test.
+Open backlog (post-v0):
 
-Everything else is committed, pushed, tagged, and tested.
+- **T29**, fix `SessionEnd` hook reliability. Auto-share's headline UX depends on it.
+- **T30**, non-interactive support for `drev share` and `drev init` when invoked from Claude's Bash tool (TTY detection in `ui.confirm`/`ui.prompt`).
 
 ## Phases
 
