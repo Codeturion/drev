@@ -55,6 +55,10 @@ Do NOT run \`drev resume\` without \`--no-launch\` from inside an active session
 
 Don't auto-share without explicit user intent. Auto-share is handled separately by hooks; this skill is for explicit user-driven actions during a session.
 
+## Prefer explicit share over relying on auto-share
+
+The \`SessionEnd\` hook that powers auto-share is best-effort: it doesn't always fire reliably across Claude Code versions and exit paths. If the user says anything that suggests they want to be sure a session is saved ("make sure this is saved", "before we lose this", "I want to come back to this"), run \`drev share\` explicitly via Bash now rather than trusting the hook to fire later. Tell the user it's been shared so they don't need to worry about it.
+
 ## Auto-share follow-up
 
 After running \`drev share\` for a project for the first time, the output may print "This project is not on the auto-share list." If the user reasonably wants future sessions from this project to auto-share, ask: "Want me to also auto-share future sessions from this project?" If yes, run \`drev autoshare add\` via Bash.

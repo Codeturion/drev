@@ -82,6 +82,8 @@ drev hooks uninstall                # remove triggers (skill stays)
 
 The current project is whitelisted automatically by `drev init`. Other projects on the same machine don't auto-share until you opt them in. To skip the whole install, run `drev init --no-auto-share`.
 
+> **Heads up:** the `SessionEnd` hook isn't always reliable across Claude Code versions and exit paths. Treat auto-share as best-effort. **For sessions you definitely want shared, ask Claude to share explicitly during the conversation** ("save this session as foo"). The skill route runs `drev share` synchronously and you see it succeed before you close the session. Hook reliability is tracked as a known issue in [`TASKS/T29-fix-sessionend-reliability.md`](./TASKS/T29-fix-sessionend-reliability.md).
+
 ---
 
 ## Reference
