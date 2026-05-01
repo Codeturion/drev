@@ -1,14 +1,32 @@
 {
-  "name": "drev-cli",
-  "version": "0.1.1",
-  "description": "Share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume`. Bin: `drev`.",
+  "name": "@codeturion/drev",
+  "version": "0.1.2",
+  "description": "Drev: share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume`. Bin: `drev`.",
   "type": "module",
   "license": "MIT",
   "author": "Fuat Can Köseoğlu",
+  "homepage": "https://github.com/Codeturion/drev#readme",
+  "bugs": {
+    "url": "https://github.com/Codeturion/drev/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Codeturion/drev.git"
   },
+  "keywords": [
+    "drev",
+    "claude",
+    "claude-code",
+    "anthropic",
+    "ai",
+    "session",
+    "share",
+    "handoff",
+    "resume",
+    "transcript",
+    "developer-tools",
+    "cli"
+  ],
   "engines": {
     "node": ">=20"
   },

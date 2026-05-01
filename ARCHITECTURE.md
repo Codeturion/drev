@@ -585,7 +585,7 @@ If 3+ consecutive sweep runs fail, the next interactive `drev` command prints a 
 
 ### 11.1 npm
 
-Package name: `drev-cli` (the unscoped `drev` was already taken on npm). Bin name remains `drev`.
+Package name: `@codeturion/drev` (unscoped `drev` was taken; `drev-cli` rejected by npm's similarity rule against `del-cli`). Bin name remains `drev`.
 `package.json` declares one binary:
 ```json
 "bin": {
@@ -596,7 +596,7 @@ Built with `tsup`, with proper shebang.
 
 Install:
 ```
-npm install -g drev-cli
+npm install -g @codeturion/drev
 ```
 
 ### 11.2 Claude Code Plugin (v0.1)
