@@ -20,14 +20,19 @@ vhs demo/hero.tape
 
 ## Recording a fresh hero gif
 
-The hero tape assumes you have a session named `auth-fix` shared from a different machine. Quickest way to set this up:
+The hero tape resumes a session named `xos-fix` (an authentic record of fixing a cross-OS bug during drev's own development). To regenerate the gif against a different session:
 
-1. On machine A (e.g. your Mac), inside any Claude Code project, finish a small debugging session and say *"save this as auth-fix"*.
-2. Confirm it's pushed: `drev list` should show `auth-fix` under your username.
-3. On machine B (e.g. your Windows PC), `cd` into the same project clone (or any project — drev rewrites paths regardless).
-4. Run `vhs demo/hero.tape` from machine B. The recording captures the cross-OS resume flow.
+1. Run `drev list --days 30` to see what you have.
+2. Pick one with a short, recognizable name (long names get truncated in the gif).
+3. Edit the `Type "drev resume <name>"` line in `hero.tape` to match.
+4. Run `vhs demo/hero.tape` from the repo root.
 
-If your session has a different name, edit line 47 of `hero.tape` before recording.
+If you want a fresh demo session built from scratch:
+
+1. In any non-sensitive project, run a quick Claude Code session (3-5 messages, contained scope).
+2. Say *"save this as <slug>"* — Claude runs `drev share` for you.
+3. Confirm with `drev list`.
+4. Update `hero.tape` and re-run `vhs demo/hero.tape`.
 
 ## Notes
 

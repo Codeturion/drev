@@ -1,4 +1,4 @@
-# Hero demo: receiver picks up a teammate's session on a different machine.
+# Hero demo: resume a Claude Code session — same conversation, different machine.
 #
 # Build with:
 #   vhs demo/hero.tape
@@ -7,10 +7,8 @@
 # Prerequisites for a real recording:
 #   - vhs installed (https://github.com/charmbracelet/vhs)
 #   - drev installed: `npm install -g @codeturion/drev`
-#   - drev init done with at least 2-3 shared sessions in your drev-sessions repo
-#   - One of those sessions is named exactly `auth-fix` (or change line 47 below)
-#   - The session ideally was shared from a different machine / OS than this one
-#     to reinforce the cross-platform story (T27-style flow)
+#   - drev init done with shared sessions visible to `drev list`
+#   - The session named in the Resume step below exists in your drev-sessions repo
 
 Output demo.gif
 
@@ -41,12 +39,12 @@ Show
 Sleep 800ms
 
 # One-line context. Doubles as a YouTube-style hook.
-Type "# Picking up a teammate's debugging session on a different machine:"
+Type "# Resume a Claude Code session, same conversation, different machine:"
 Sleep 1.6s
 Enter
 Sleep 500ms
 
-# 1. See what's available (pulls latest from the team repo, lists sessions).
+# 1. See what's available (pulls latest from the repo, lists sessions).
 Type "drev list --days 7"
 Sleep 400ms
 Enter
@@ -56,7 +54,7 @@ Sleep 3.5s
 #    sender's machine to this one (Mac->Windows or vice versa), places the
 #    JSONL into ~/.claude/projects/<encoded>/<id>.jsonl, then spawns
 #    `claude --resume <id>` so Claude Code opens with the full transcript.
-Type "drev resume auth-fix"
+Type "drev resume xos-fix"
 Sleep 400ms
 Enter
 
