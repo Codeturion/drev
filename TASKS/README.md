@@ -49,7 +49,7 @@ Operational view of v0 work. Each row links to a task file with full scope, acce
 |----|------|--------|------------|-------|
 | [T25](T25-readme-quickstart.md) | README quickstart | ✓ | Phase C complete | §16 DoD |
 | [T26](T26-integration-test.md) | E2E integration test | ✓ | T13, T14, T15 | §13.2, §16 DoD |
-| [T27](T27-manual-cross-machine.md) | Manual cross-machine resume | ▶ | T26 | §13.3, §16 DoD |
+| [T27](T27-manual-cross-machine.md) | Manual cross-machine resume | ✓ | T26 | Passed 2026-05-01 (Win→Mac); see docs/MANUAL_TESTS.md run log |
 | [T28](T28-publish.md) | `npm publish` to npm | ▶ | T25, T26 | §16 DoD |
 
 ## Post-v0.1 backlog (known issues)
