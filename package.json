@@ -1,6 +1,6 @@
 {
   "name": "drev",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Share Claude Code sessions through a Git repo.",
   "type": "module",
   "license": "MIT",

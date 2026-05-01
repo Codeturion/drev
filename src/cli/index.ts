@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   program
     .name('drev')
     .description('Share Claude Code sessions through a Git repo.')
-    .version('0.0.0')
+    .version('0.1.0')
     .allowExcessArguments(false)
     .showHelpAfterError();
 
