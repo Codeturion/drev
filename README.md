@@ -11,9 +11,40 @@ npm install -g drev
 drev init
 ```
 
-The wizard asks two questions; accept the defaults and you're done. drev creates a private repo at `<your-gh-user>/drev-sessions`, installs Claude Code hooks for auto-share, and drops a skill at `~/.claude/skills/drev/SKILL.md`.
+What you'll see:
+
+```
+$ drev init
+Got a Drev repo URL from your team? (paste, or leave empty to create new):
+Create private repo at fuat/drev-sessions? [Y/n] Y
+✓ Cloning https://github.com/fuat/drev-sessions.git ...
+✓ Drev initialized at /home/fuat/.drev/repos/drev-sessions.
+✓ Auto-share enabled. Hooks + skill installed.
+✓ Added /home/fuat/work/inventory-app to auto-share whitelist.
+```
+
+Two questions, accept the defaults, you're done. You now have a private GitHub repo for sessions, hooks installed for auto-share, the bundled skill so Claude Code understands `drev`, and the current project on the auto-share whitelist.
 
 Requires Node ≥20, `git`, and the [`gh` CLI](https://cli.github.com) (the wizard uses it). For non-GitHub hosts or offline use, see [Reference](#reference).
+
+## Example: a session end-to-end
+
+You finish a debugging session in `~/work/inventory-app`. Inside Claude Code, you say:
+
+> save this session as inventory-sync-fix
+
+Claude runs `drev share --name inventory-sync-fix` for you. Drev redacts secrets, writes the session into your team repo at `users/fuat/2026-05-01-inventory-sync-fix/`, and pushes to GitHub.
+
+Next morning, your teammate picks it up. From their machine, in their copy of the project:
+
+```bash
+cd ~/code/inventory-app
+drev resume inventory-sync-fix
+```
+
+Drev pulls the latest, rewrites every path from your machine to theirs (including the OS conventions if you're on different platforms), places the JSONL at `~/.claude/projects/<encoded>/<id>.jsonl`, and spawns `claude --resume <id>`. Claude Code opens with the full transcript loaded.
+
+If you forgot to ask Claude to share, the `SessionEnd` hook would have shared automatically when you closed your session. Either way the receiver flow is identical.
 
 ## Use it inside Claude Code
 
