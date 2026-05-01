@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./drev_logo.png" alt="Drev: save × share × resume" width="600" />
+</p>
+
 # Drev
 
 **Drev makes Claude Code sessions durable.** When you hand work off today, your code and a Slack thread survive. The actual Claude Code session where you tried, failed, and eventually figured it out dies with the terminal. Drev moves that session to a Git repo your team controls. Teammates resume where you left off with every tool call intact. Solo, your sessions become a personal memory across machines and projects.
@@ -12,6 +16,14 @@ The bundled Claude Code skill makes the flow feel native: just say *"save this s
 | Lost when the engineer logs off | Persists in your team's Git repo |
 
 > v0. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/CORRECTIONS.md](./docs/CORRECTIONS.md). License: MIT.
+
+## Demo
+
+<p align="center">
+  <img src="./demo.gif" alt="Drev demo: producer shares a session, consumer resumes on a different machine" width="800" />
+</p>
+
+*Engineer A finishes a debugging session in Claude Code and says "save this as auth-fix". Engineer B, on a different machine and a different OS, runs `drev resume auth-fix`. Claude Code opens with the full transcript loaded, every path rewritten to B's machine.*
 
 ## Quick start
 
