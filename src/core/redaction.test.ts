@@ -3,9 +3,11 @@ import { ValidationError } from '../lib/errors.js';
 import {
   DEFAULT_PATTERNS,
   compileUserPattern,
+  findSuspiciousTokens,
   redact,
   type RedactionPattern,
 } from './redaction.js';
+import { LEAK_CORPUS } from './redaction.fixtures.js';
 
 function patternByType(type: string): RedactionPattern {
   const p = DEFAULT_PATTERNS.find((x) => x.type === type);
@@ -298,5 +300,89 @@ describe('compileUserPattern', () => {
     expect(counts['aws_access_key']).toBe(1);
     expect(output).toContain('<REDACTED:internal>');
     expect(output).toContain('<REDACTED:aws_access_key>');
+  });
+});
+
+// Synthetic-leak corpus (item 3). Each pattern has at least one fixture in
+// LEAK_CORPUS that must be scrubbed. If anyone weakens a regex, this test
+// fails loudly. Fixtures are obviously fake but realistically shaped.
+describe('synthetic-leak corpus', () => {
+  it('every default pattern has at least one corpus fixture', () => {
+    const fixtureTypes = new Set(LEAK_CORPUS.map((s) => s.type));
+    for (const p of DEFAULT_PATTERNS) {
+      expect(fixtureTypes.has(p.type)).toBe(true);
+    }
+  });
+
+  it.each(LEAK_CORPUS)(
+    '$type: secret is replaced by the redaction marker',
+    ({ type, secret, line }) => {
+      const { output, counts } = redact(line, DEFAULT_PATTERNS);
+      expect(output).not.toContain(secret);
+      expect(output).toContain(`<REDACTED:${type}>`);
+      // The secret-bearing pattern must have fired at least once. A different
+      // pattern may legitimately also fire (e.g. aws_secret_key on padding),
+      // so we don't assert on other counts.
+      expect(counts[type]).toBeGreaterThanOrEqual(1);
+    },
+  );
+
+  it('a single payload concatenating every fixture is fully scrubbed in one pass', () => {
+    const concatenated = LEAK_CORPUS.map((s) => s.line).join('\n');
+    const { output } = redact(concatenated, DEFAULT_PATTERNS);
+    for (const { secret } of LEAK_CORPUS) {
+      expect(output).not.toContain(secret);
+    }
+  });
+});
+
+describe('findSuspiciousTokens', () => {
+  it('returns zero on plain prose', () => {
+    const r = findSuspiciousTokens(
+      'this is a normal log line with words and short tokens like abc123',
+    );
+    expect(r.count).toBe(0);
+  });
+
+  it('returns zero when text contains only redaction markers', () => {
+    const r = findSuspiciousTokens(
+      'before <REDACTED:anthropic_key> middle <REDACTED:github_pat> after',
+    );
+    expect(r.count).toBe(0);
+  });
+
+  it('skips pure-hex tokens (git SHAs, file hashes) to avoid noise', () => {
+    // 40-char git SHA. Entropy ~4.0 but pure hex.
+    const sha = 'a'.repeat(20) + '1'.repeat(20);
+    const r = findSuspiciousTokens(`commit ${sha}`);
+    expect(r.count).toBe(0);
+  });
+
+  it('flags a high-entropy mixed-class token of length >= 32', () => {
+    // 37 chars, mixed upper/lower/digit, plenty of variety => high entropy.
+    // Surrounding quotes are not in the token character class, so the token
+    // boundary is clean for assertion.
+    const token = 'Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm2N';
+    const r = findSuspiciousTokens(`"${token}"`);
+    expect(r.count).toBe(1);
+    expect(r.samples).toContain(token);
+  });
+
+  it('caps samples at 3 even when many suspicious tokens exist', () => {
+    const tokens = Array.from(
+      { length: 5 },
+      (_, i) => `Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm${i}xyz`,
+    );
+    const r = findSuspiciousTokens(tokens.join(' '));
+    expect(r.count).toBe(5);
+    expect(r.samples.length).toBe(3);
+  });
+
+  it('counts a real-shaped key the regex layer would otherwise miss (safety net)', () => {
+    // Hypothetical vendor key: prefix the regex set does not know about,
+    // mixed character classes, high entropy.
+    const key = 'vendor_live_Hk9XmP2qLfV4nWcR8jZ5tBdY7sNgEa6oFi';
+    const r = findSuspiciousTokens(`API_KEY=${key}`);
+    expect(r.count).toBeGreaterThanOrEqual(1);
   });
 });

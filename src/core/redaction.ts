@@ -59,3 +59,52 @@ export function compileUserPattern(type: string, source: string): RedactionPatte
     );
   }
 }
+
+// --- Entropy-based safety net (post-regex pass) ----------------------------
+// The regex set in DEFAULT_PATTERNS is the load-bearing redactor. This pass
+// is a non-blocking observer that flags suspiciously high-entropy strings
+// the regex layer did not catch, so callers can warn the operator before
+// pushing. False positives are acceptable because this only ever warns.
+
+const SUSPICIOUS_TOKEN_RE = /[A-Za-z0-9+/=_-]{32,}/g;
+const PURE_HEX_RE = /^[0-9a-f]+$/;
+const REDACTION_MARKER_RE = /^<REDACTED:[^>]+>$/;
+const SUSPICIOUS_ENTROPY_THRESHOLD = 4.0;
+const MAX_SAMPLES = 3;
+
+function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0;
+  const freq: Record<string, number> = {};
+  for (const ch of s) freq[ch] = (freq[ch] ?? 0) + 1;
+  let h = 0;
+  for (const n of Object.values(freq)) {
+    const p = n / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
+export interface SuspiciousReport {
+  count: number;
+  samples: string[];
+}
+
+export function findSuspiciousTokens(text: string): SuspiciousReport {
+  const samples: string[] = [];
+  const seen = new Set<string>();
+  let count = 0;
+  for (const match of text.matchAll(SUSPICIOUS_TOKEN_RE)) {
+    const token = match[0];
+    // Skip our own redaction markers so a previous pass doesn't flag itself.
+    if (REDACTION_MARKER_RE.test(token)) continue;
+    // Pure hex (git SHAs, file hashes) is common and low signal; skip.
+    if (PURE_HEX_RE.test(token)) continue;
+    if (shannonEntropy(token) < SUSPICIOUS_ENTROPY_THRESHOLD) continue;
+    count += 1;
+    if (samples.length < MAX_SAMPLES && !seen.has(token)) {
+      samples.push(token);
+      seen.add(token);
+    }
+  }
+  return { count, samples };
+}
