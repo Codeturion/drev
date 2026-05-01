@@ -37,9 +37,9 @@ Concretely:
 
 You can see the wave boundaries in the git log. Examples:
 
-- `27f45cf T06,T07,T09: Phase B Wave 1 (metadata, config, session)` — three agents, one commit
-- `ae30aa1 T13-T16,T18-T22,T24: Phase C Wave 2 (10 commands in parallel)` — ten agents, one commit
-- `381318d T17,T23: Phase C Wave 3 (backup, autoshare-sweep)` — two agents that depended on T14's `executeShare` helper, ran together once T14 was done
+- `27f45cf T06,T07,T09: Phase B Wave 1 (metadata, config, session)`: three agents, one commit
+- `ae30aa1 T13-T16,T18-T22,T24: Phase C Wave 2 (10 commands in parallel)`: ten agents, one commit
+- `381318d T17,T23: Phase C Wave 3 (backup, autoshare-sweep)`: two agents that depended on T14's `executeShare` helper, ran together once T14 was done
 
 Each commit message names which tasks landed and what dependency gate had to clear first.
 
