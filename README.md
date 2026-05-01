@@ -209,10 +209,6 @@ If your machine has two GitHub accounts (e.g. work and personal) and only one ha
 
 ---
 
-## <img src="./assets/icons/how-built.png" alt="" width="40" align="absmiddle"> How this was built
-
-Drev v0 was built in a single working session by one engineer using Claude Code as orchestrator with parallel sub-agents as the workforce. 30 narrowly-scoped tasks across 4 phases, up to 10 agents in parallel at peak, 572 passing tests, 96% line coverage on `core/`, bidirectional cross-OS validation. Build narrative, dispatch pattern, and the four architectural corrections caught by real-world testing: [docs/HOW_THIS_WAS_BUILT.md](./docs/HOW_THIS_WAS_BUILT.md).
-
 ## <img src="./assets/icons/license.png" alt="" width="40" align="absmiddle"> License
 
 MIT.
