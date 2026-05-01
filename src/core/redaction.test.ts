@@ -436,6 +436,53 @@ describe('findSuspiciousTokens', () => {
     expect(r.count).toBeGreaterThanOrEqual(1);
   });
 
+  // Array overload: callers with multiple payloads (parent + subagents) should
+  // not have to concatenate before scanning. Aggregating in-place is identical
+  // in result but avoids the throwaway concatenated copy.
+  describe('array input', () => {
+    it('produces the same count as the equivalent concatenation', () => {
+      const a = 'noise here';
+      const realLeak = 'vendor_live_Hk9XmP2qLfV4nWcR8jZ5tBdY7sNgEa6oFi';
+      const b = `secret "${realLeak}" embedded`;
+      const c = '{"signature":"ErYCClkIDRgCKkBF4hNIqqyj"}';
+
+      const fromString = findSuspiciousTokens([a, b, c].join('\n'));
+      const fromArray = findSuspiciousTokens([a, b, c]);
+
+      expect(fromArray.count).toBe(fromString.count);
+      expect(fromArray.samples).toEqual(fromString.samples);
+    });
+
+    it('aggregates count across all elements', () => {
+      const k1 = 'vendor_live_Hk9XmP2qLfV4nWcR8jZ5tBdY7sNgEa6oFi';
+      const k2 = 'xpro_token_Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm';
+      const r = findSuspiciousTokens([`a "${k1}"`, `b "${k2}"`]);
+      expect(r.count).toBe(2);
+      expect(r.samples).toContain(k1);
+      expect(r.samples).toContain(k2);
+    });
+
+    it('returns zero on an empty array', () => {
+      const r = findSuspiciousTokens([]);
+      expect(r.count).toBe(0);
+      expect(r.samples).toEqual([]);
+    });
+
+    it('caps samples at 3 across the union of inputs', () => {
+      const tokens = Array.from(
+        { length: 6 },
+        (_, i) => `Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm${i}xyz`,
+      );
+      // Two inputs, three tokens each. Total 6 unique suspicious tokens.
+      const r = findSuspiciousTokens([
+        tokens.slice(0, 3).map((t) => `"${t}"`).join(' '),
+        tokens.slice(3).map((t) => `"${t}"`).join(' '),
+      ]);
+      expect(r.count).toBe(6);
+      expect(r.samples.length).toBe(3);
+    });
+  });
+
   it('handles a mixed payload (MCP tools + signatures + a real leak)', () => {
     const realLeak = 'vendor_live_Hk9XmP2qLfV4nWcR8jZ5tBdY7sNgEa6oFi';
     const payload = [

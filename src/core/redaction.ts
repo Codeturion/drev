@@ -111,32 +111,40 @@ export interface SuspiciousReport {
   samples: string[];
 }
 
-export function findSuspiciousTokens(text: string): SuspiciousReport {
-  // Pre-strip Claude Code thinking-block signatures: stable JSON shape, always
-  // high-entropy, never a secret. Replacing with empty content (rather than
-  // deleting) preserves byte offsets and downstream parsing in case callers
-  // ever inspect them.
-  const cleaned = text.replace(SIGNATURE_FIELD_RE, '"signature":""');
-
+// Accepts either a single string or an array of strings. Callers with multiple
+// payloads (e.g. parent JSONL + N subagent JSONLs) should pass the array form
+// to avoid allocating a concatenated copy of the entire session.
+export function findSuspiciousTokens(
+  text: string | readonly string[],
+): SuspiciousReport {
+  const inputs = typeof text === 'string' ? [text] : text;
   const samples: string[] = [];
   const seen = new Set<string>();
   let count = 0;
-  for (const match of cleaned.matchAll(SUSPICIOUS_TOKEN_RE)) {
-    const token = match[0];
-    // Skip our own redaction markers so a previous pass doesn't flag itself.
-    if (REDACTION_MARKER_RE.test(token)) continue;
-    // Pure hex (git SHAs, file hashes) is common and low signal; skip.
-    if (PURE_HEX_RE.test(token)) continue;
-    // Claude Code MCP tool identifiers are not secrets even though they look
-    // base64-shaped; skip them or every MCP-enabled session floods the warning.
-    if (MCP_TOOL_NAME_RE.test(token)) continue;
-    // Path / URL fragments have multiple slashes; modern API keys do not.
-    if (countSlashes(token) > MAX_PATH_SLASHES) continue;
-    if (shannonEntropy(token) < SUSPICIOUS_ENTROPY_THRESHOLD) continue;
-    count += 1;
-    if (samples.length < MAX_SAMPLES && !seen.has(token)) {
-      samples.push(token);
-      seen.add(token);
+
+  for (const input of inputs) {
+    // Pre-strip Claude Code thinking-block signatures: stable JSON shape,
+    // always high-entropy, never a secret. Replacing with empty content
+    // (rather than deleting) preserves byte offsets in case callers ever
+    // inspect them.
+    const cleaned = input.replace(SIGNATURE_FIELD_RE, '"signature":""');
+    for (const match of cleaned.matchAll(SUSPICIOUS_TOKEN_RE)) {
+      const token = match[0];
+      // Skip our own redaction markers so a previous pass doesn't flag itself.
+      if (REDACTION_MARKER_RE.test(token)) continue;
+      // Pure hex (git SHAs, file hashes) is common and low signal; skip.
+      if (PURE_HEX_RE.test(token)) continue;
+      // Claude Code MCP tool identifiers are not secrets even though they look
+      // base64-shaped; skip them or every MCP-enabled session floods the warning.
+      if (MCP_TOOL_NAME_RE.test(token)) continue;
+      // Path / URL fragments have multiple slashes; modern API keys do not.
+      if (countSlashes(token) > MAX_PATH_SLASHES) continue;
+      if (shannonEntropy(token) < SUSPICIOUS_ENTROPY_THRESHOLD) continue;
+      count += 1;
+      if (samples.length < MAX_SAMPLES && !seen.has(token)) {
+        samples.push(token);
+        seen.add(token);
+      }
     }
   }
   return { count, samples };
