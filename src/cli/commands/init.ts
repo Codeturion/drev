@@ -1,28 +1,256 @@
+import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import * as gitOps from '../../core/git-ops.js';
 import { ensureScaffold } from '../../core/repo.js';
 import { readUserConfig, writeUserConfig } from '../../core/config.js';
 import { RepoError } from '../../lib/errors.js';
-import { info, spinner, warn } from '../ui.js';
+import { confirm, info, prompt, spinner, warn } from '../ui.js';
+
+const execFileAsync = promisify(execFile);
 
 const HTTP_RE = /^https?:\/\/[^\s]+$/;
 const SSH_URL_RE = /^(?:ssh|git|git\+ssh):\/\/[^\s]+$/;
 const SCP_RE = /^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+:[A-Za-z0-9_./~-]+$/;
+const SHORTHAND_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+const GH_TIMEOUT_MS = 30_000;
+
+interface InitOptions {
+  name?: string;
+  local?: boolean;
+  at?: string;
+  reinit?: boolean;
+}
+
+interface ExecChildError extends Error {
+  code?: string | number | null;
+  killed?: boolean;
+  signal?: string | null;
+  stdout?: string;
+  stderr?: string;
+}
 
 export function register(program: Command): void {
   program
-    .command('init <repo-url>')
-    .description('Initialize Drev with a Git remote (clones into ~/.drev/repos/<name>).')
+    .command('init [target]')
+    .description(
+      "Initialize Drev. Run with no args for the wizard, or pass a Git URL, an 'owner/name' shorthand, or --local.",
+    )
     .option('--name <local-name>', 'local clone directory name')
-    .action(async (repoUrl: string, opts: { name?: string }) => {
-      await runInit(repoUrl, opts);
+    .option('--local', 'create a local-only bare repo (no GitHub)')
+    .option('--at <path>', 'path for the local bare repo (use with --local)')
+    .option('--reinit', 'replace an existing default repo binding')
+    .action(async (target: string | undefined, opts: InitOptions) => {
+      await runInit(target, opts);
     });
 }
 
 export async function runInit(
+  target: string | undefined,
+  opts: InitOptions,
+): Promise<void> {
+  const cfg = await readUserConfig();
+  const existing = cfg.default_repo;
+  if (existing && existing.length > 0 && !opts.reinit) {
+    info(
+      `Already initialized at ${existing}. Use --reinit to point at a different repo.`,
+    );
+    return;
+  }
+
+  const mode = parseMode(target, opts);
+  switch (mode.kind) {
+    case 'wizard':
+      await runWizard(opts);
+      return;
+    case 'url':
+      await executeUrlFlow(mode.url, { name: opts.name });
+      return;
+    case 'shorthand':
+      await executeShorthandFlow(mode.shorthand, opts);
+      return;
+    case 'local':
+      await executeLocalFlow(opts);
+      return;
+  }
+}
+
+type Mode =
+  | { kind: 'wizard' }
+  | { kind: 'url'; url: string }
+  | { kind: 'shorthand'; shorthand: string }
+  | { kind: 'local' };
+
+function parseMode(target: string | undefined, opts: InitOptions): Mode {
+  const trimmed = typeof target === 'string' ? target.trim() : '';
+
+  if (trimmed.length === 0) {
+    if (opts.local) return { kind: 'local' };
+    return { kind: 'wizard' };
+  }
+
+  // Power-URL form: anything containing :// or matching scp form.
+  if (
+    HTTP_RE.test(trimmed) ||
+    SSH_URL_RE.test(trimmed) ||
+    SCP_RE.test(trimmed)
+  ) {
+    return { kind: 'url', url: trimmed };
+  }
+
+  if (SHORTHAND_RE.test(trimmed)) {
+    return { kind: 'shorthand', shorthand: trimmed };
+  }
+
+  throw new RepoError(
+    `Could not parse '${target ?? ''}'. Pass a Git URL, a 'owner/name' shorthand, or use --local.`,
+  );
+}
+
+async function runWizard(opts: InitOptions): Promise<void> {
+  if (!(await gitOps.isAvailable('gh'))) {
+    throw new RepoError(
+      "Drev's setup wizard needs the GitHub CLI ('gh'). Install: https://cli.github.com — or run 'drev init <url>' / 'drev init --local'.",
+    );
+  }
+
+  let user: string;
+  try {
+    user = (await runGh(['api', 'user', '-q', '.login'])).trim();
+  } catch (err) {
+    throw new RepoError(
+      "Couldn't read your GitHub username (gh auth status?). Try 'gh auth login'.",
+      { cause: err },
+    );
+  }
+  if (user.length === 0) {
+    throw new RepoError(
+      "Couldn't read your GitHub username (gh auth status?). Try 'gh auth login'.",
+    );
+  }
+
+  const pasted = await prompt(
+    'Got a Drev repo URL from your team? (paste it, or leave empty to create new): ',
+  );
+  if (pasted.length > 0) {
+    await executeUrlFlow(pasted, { name: opts.name });
+    return;
+  }
+
+  const defaultTarget = `${user}/drev-sessions`;
+  const ok = await confirm(`Create private repo at ${defaultTarget}?`);
+  let shorthand: string;
+  if (ok) {
+    shorthand = defaultTarget;
+  } else {
+    const answer = await prompt("Enter '<owner>/<name>': ");
+    if (!SHORTHAND_RE.test(answer)) {
+      throw new RepoError(
+        `Invalid '<owner>/<name>': '${answer}'. Use letters, digits, dot, dash, or underscore on both sides of '/'.`,
+      );
+    }
+    shorthand = answer;
+  }
+
+  await executeShorthandFlow(shorthand, opts);
+}
+
+async function executeShorthandFlow(
+  shorthand: string,
+  opts: InitOptions,
+): Promise<void> {
+  if (!(await gitOps.isAvailable('gh'))) {
+    throw new RepoError(
+      `Drev needs the GitHub CLI ('gh') to resolve '${shorthand}'. Install: https://cli.github.com — or run 'drev init <full-url>' / 'drev init --local'.`,
+    );
+  }
+
+  let viewStdout: string | null = null;
+  try {
+    viewStdout = await runGh(['repo', 'view', shorthand, '--json', 'url']);
+  } catch (err) {
+    if (isGhNotFound(err)) {
+      // Fall through to create.
+    } else {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new RepoError(
+        `Could not check if '${shorthand}' exists on GitHub: ${msg}`,
+        { cause: err },
+      );
+    }
+  }
+
+  let url: string;
+  if (viewStdout !== null) {
+    url = parseRepoUrl(viewStdout, shorthand);
+  } else {
+    try {
+      await runGh([
+        'repo',
+        'create',
+        shorthand,
+        '--private',
+        '--description',
+        'Drev sessions repo',
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new RepoError(
+        `Failed to create '${shorthand}' on GitHub: ${msg}`,
+        { cause: err },
+      );
+    }
+    url = `https://github.com/${shorthand}.git`;
+  }
+
+  await executeUrlFlow(url, { name: opts.name });
+}
+
+async function executeLocalFlow(opts: InitOptions): Promise<void> {
+  const barePath =
+    typeof opts.at === 'string' && opts.at.length > 0
+      ? opts.at
+      : join(homedir(), '.drev', 'local-sessions.git');
+
+  if (await pathExists(barePath)) {
+    throw new RepoError(
+      `local repo already exists at ${barePath}; remove it or pass --at <other>`,
+    );
+  }
+
+  try {
+    await execFileAsync('git', ['init', '--bare', barePath], {
+      timeout: GH_TIMEOUT_MS,
+      windowsHide: true,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new RepoError(
+      `Failed to create local bare repo at ${barePath}: ${msg}`,
+      { cause: err },
+    );
+  }
+
+  const baseName = basename(barePath).replace(/\.git$/, '');
+  const cloneName = opts.name ?? (baseName.length > 0 ? baseName : 'local-sessions');
+  const clonePath = join(homedir(), '.drev', 'repos', cloneName);
+
+  if (await pathExists(clonePath)) {
+    throw new RepoError(
+      `drev is already initialized at ${clonePath}; use a different --name or remove that directory.`,
+    );
+  }
+
+  await cloneScaffoldAndPush(barePath, clonePath, baseName);
+  await writeDefaultRepo(clonePath);
+  printSuccess(clonePath);
+}
+
+async function executeUrlFlow(
   repoUrl: string,
   opts: { name?: string },
 ): Promise<void> {
@@ -44,10 +272,20 @@ export async function runInit(
     );
   }
 
-  const sp = spinner(`Cloning ${repoUrl} into ${clonePath}...`);
+  await cloneScaffoldAndPush(repoUrl, clonePath, segment ?? name);
+  await writeDefaultRepo(clonePath);
+  printSuccess(clonePath);
+}
+
+async function cloneScaffoldAndPush(
+  source: string,
+  clonePath: string,
+  teamName: string,
+): Promise<void> {
+  const sp = spinner(`Cloning ${source} into ${clonePath}...`);
   try {
-    await gitOps.clone(repoUrl, clonePath);
-    sp.succeed(`Cloned ${repoUrl}`);
+    await gitOps.clone(source, clonePath);
+    sp.succeed(`Cloned ${source}`);
   } catch (err) {
     sp.fail(`Clone failed`);
     throw err;
@@ -62,10 +300,7 @@ export async function runInit(
     warn(`Could not detect default branch: ${msg}`);
   }
 
-  const teamName = segment ?? name;
   const hadDrev = await pathExists(join(clonePath, '.drev'));
-
-  // ensureScaffold both creates a fresh scaffold and validates an existing one's schema.
   const result = await ensureScaffold(clonePath, teamName);
 
   if (!hadDrev && result.created) {
@@ -84,13 +319,62 @@ export async function runInit(
       warn(`Local clone is ready at ${clonePath}. Run 'drev sync' to retry the push.`);
     }
   }
+}
 
+async function writeDefaultRepo(clonePath: string): Promise<void> {
   const cfg = await readUserConfig();
   cfg.default_repo = clonePath;
   await writeUserConfig(cfg);
+}
 
+function printSuccess(clonePath: string): void {
   info(`Drev initialized at ${clonePath}.`);
   info(`Run 'drev share' to share your first session.`);
+}
+
+async function runGh(args: string[]): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('gh', args, {
+      timeout: GH_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return stdout.toString();
+  } catch (err) {
+    throw err;
+  }
+}
+
+function isGhNotFound(err: unknown): boolean {
+  const e = err as ExecChildError;
+  const stderr = (e?.stderr ?? '').toString().toLowerCase();
+  if (
+    stderr.includes('could not resolve') ||
+    stderr.includes('not found') ||
+    stderr.includes('no such repository') ||
+    stderr.includes('http 404')
+  ) {
+    return true;
+  }
+  // gh exits 1 for "not found" on `gh repo view`.
+  return false;
+}
+
+function parseRepoUrl(stdout: string, shorthand: string): string {
+  try {
+    const obj = JSON.parse(stdout) as { url?: unknown };
+    if (typeof obj.url === 'string' && obj.url.length > 0) {
+      const url = obj.url;
+      // gh returns the web URL; ensure it ends with .git for git clone friendliness.
+      if (/^https?:\/\//.test(url) && !url.endsWith('.git')) {
+        return `${url}.git`;
+      }
+      return url;
+    }
+  } catch {
+    // fall through
+  }
+  return `https://github.com/${shorthand}.git`;
 }
 
 function validateUrl(url: string): void {
@@ -132,4 +416,3 @@ async function pathExists(p: string): Promise<boolean> {
     throw new RepoError(`Failed to stat ${p}.`, { cause: err });
   }
 }
-

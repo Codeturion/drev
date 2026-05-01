@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { info, warn, errorOut, table, confirm } from './ui.js';
+import { info, warn, errorOut, table, confirm, prompt } from './ui.js';
 
 let nextAnswer = '';
 vi.mock('node:readline', () => ({
@@ -166,5 +166,30 @@ describe('confirm', () => {
 
   it('returns false on garbage input', async () => {
     expect(await runConfirm('maybe')).toBe(false);
+  });
+});
+
+describe('prompt', () => {
+  async function runPrompt(answer: string): Promise<string> {
+    nextAnswer = answer;
+    return await prompt('paste url: ');
+  }
+
+  it('returns empty string for empty input', async () => {
+    expect(await runPrompt('')).toBe('');
+  });
+
+  it('returns the answer as-is when no surrounding whitespace', async () => {
+    expect(await runPrompt('https://example.com/repo.git')).toBe(
+      'https://example.com/repo.git',
+    );
+  });
+
+  it('trims surrounding whitespace from the answer', async () => {
+    expect(await runPrompt('   org/name  ')).toBe('org/name');
+  });
+
+  it('trims newlines and tabs', async () => {
+    expect(await runPrompt('\n\tfoo/bar\t\n')).toBe('foo/bar');
   });
 });

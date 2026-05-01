@@ -78,3 +78,15 @@ export async function confirm(prompt: string): Promise<boolean> {
     rl.close();
   }
 }
+
+export async function prompt(message: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await new Promise<string>((resolve) => {
+      rl.question(message, (a) => resolve(a));
+    });
+    return answer.trim();
+  } finally {
+    rl.close();
+  }
+}
