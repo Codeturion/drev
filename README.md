@@ -4,7 +4,11 @@
 
 # Drev
 
-**Drev makes Claude Code sessions durable.** When you hand work off today, your code and a Slack thread survive. The actual Claude Code session where you tried, failed, and eventually figured it out dies with the terminal. Drev moves that session to a Git repo your team controls. Teammates resume where you left off with every tool call intact. Solo, your sessions become a personal memory across machines and projects.
+**Drev makes Claude Code sessions portable: share one with a friend or teammate, or resume it yourself on any machine, Mac or PC.**
+
+You finish a long debugging session and hand the work to a teammate. Your colleague leaves on vacation mid-feature and someone has to pick it up. You started something on your work PC and want to keep going from your laptop at home. In all three cases, today the actual Claude Code conversation, every step, every dead end, every "ah, that's why", dies the moment the terminal closes. The next person starts from scratch, even if that next person is *you*.
+
+Drev keeps the conversation alive. The session moves with the work, not the machine.
 
 The bundled Claude Code skill makes the flow feel native: just say *"save this session as foo"* and Claude runs `drev share` for you. Native `claude --resume` continues the receiver's session with full transcript fidelity.
 
