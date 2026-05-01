@@ -13,7 +13,7 @@ import {
 } from '../../core/claude-paths.js';
 import { rewritePaths } from '../../core/path-rewriter.js';
 import { readUserConfig } from '../../core/config.js';
-import { ConfigError, RepoError } from '../../lib/errors.js';
+import { ConfigError } from '../../lib/errors.js';
 import { info, warn } from '../ui.js';
 
 export interface ResumeOptions {
@@ -159,9 +159,12 @@ async function determineDestRoot(intoFlag: string | undefined): Promise<string> 
   }
   const top = await gitOps.showTopLevel(process.cwd());
   if (top) return top;
-  throw new RepoError(
-    'could not determine destination project root; pass --into <path> to specify it',
-  );
+  // No --into and cwd is not inside a git repo: fall back to cwd. Spec §9.5 step 4
+  // says prompt the user, but for v0 we silently default and log so the command
+  // never fails just because the destination isn't a git repo.
+  const cwd = process.cwd();
+  info(`destination not specified; using ${cwd} (override with --into <path>)`);
+  return cwd;
 }
 
 async function listSubagentFiles(dir: string): Promise<string[]> {

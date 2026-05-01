@@ -240,13 +240,24 @@ describe('runResume — --into override', () => {
     );
   });
 
-  it('errors when neither --into nor showTopLevel yields a destination', async () => {
+  it('falls back to process.cwd() when neither --into nor showTopLevel yields a destination', async () => {
     vi.mocked(gitOps.showTopLevel).mockResolvedValue(null);
 
-    await expect(runResume('auth', {})).rejects.toMatchObject({
-      code: 'REPO_ERROR',
-      message: expect.stringContaining('--into'),
-    });
+    const cap = captureStdout();
+    try {
+      await runResume('auth', { launch: false });
+    } finally {
+      cap.restore();
+    }
+
+    // path-rewriter should have been called with cwd as the destination root.
+    const calls = vi.mocked(pathRewriter.rewritePaths).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    const destArg = calls[0]?.[2];
+    expect(destArg).toBe(process.cwd());
+    // user is informed of the auto-picked destination.
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.includes('destination not specified'))).toBe(true);
   });
 });
 
