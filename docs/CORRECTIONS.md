@@ -33,6 +33,18 @@ Many session directories contain sibling files at `~/.claude/projects/<encoded-c
 
 **Rule:** subagent JSONLs are part of the session payload, not a v0.5 enhancement. Track as a v0 implementation requirement.
 
+## 3. §3.9 inverted: auto-share is on by default
+
+**ARCHITECTURE.md §3.9 says:** "Default is manual share. Reason: auto-modifying global Claude Code config without explicit consent erodes trust."
+
+**Decision in v0.1:** flip the default. `drev init` auto-installs hooks + the bundled `drev` skill into `~/.claude/`, and `defaultUserConfig().auto_share` is `'auto-team'` (not `'manual'`).
+
+**Why:** product feedback — the "open a new terminal to run drev share" friction kills adoption. Auto-share captures sessions on end without user effort. The bundled skill makes mid-session "save this" requests work via Bash without the user installing anything.
+
+**Opt-out:** `drev init --no-auto-share` skips the install. `drev hooks uninstall` removes hooks + skill. Edit `~/.drev/config.yaml` to flip `auto_share` to `'manual'` or `'auto-private'`.
+
+**Trust note:** the original "explicit consent" concern is mitigated by (a) `drev init` is itself an explicit consent moment, (b) `--no-auto-share` is a one-flag escape, and (c) the install is reversible.
+
 ## How to update the architecture
 
 These corrections supersede the conflicting passages in `ARCHITECTURE.md`. Rather than editing the architecture document in place (which would lose its design-time integrity), implementers should consult this file alongside it. When v0 ships, fold these into a v2 of the architecture doc.

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Command } from 'commander';
@@ -6,11 +6,45 @@ import { readUserConfig } from '../../core/config.js';
 import type { AutoShareMode } from '../../core/config.js';
 import { drevHome } from '../../core/claude-paths.js';
 import { ConfigError } from '../../lib/errors.js';
-import { info } from '../ui.js';
+import { info, warn } from '../ui.js';
 
 const HOOK_COMMAND = 'drev autoshare-sweep';
 const HOOK_EVENTS = ['SessionStart', 'SessionEnd'] as const;
 type HookEvent = (typeof HOOK_EVENTS)[number];
+
+export const DREV_SKILL_CONTENT = `---
+name: drev
+description: Share, list, resume, or manage Claude Code sessions through Drev. Use when the user wants to save, share, hand off, or back up the current session, or to see, find, or resume someone else's shared session.
+---
+
+# Drev — Claude Code session sharing
+
+Drev shares Claude Code session JSONLs through a Git repo. Commands run via the Bash tool. Drev must be on PATH; if not, suggest \`npm install -g drev\`.
+
+## Common actions
+
+**Share this session.** User says "save this", "share this", "hand it off", or names a target.
+- Run \`drev share --name <slug>\` via Bash. Derive the slug from session topic — short, descriptive, lowercase, dashes (drev sanitizes anyway).
+- Confirm the slug with the user if ambiguous.
+- For private/personal: \`drev backup --name <slug>\`.
+
+**List what's available.** User asks what sessions exist.
+- \`drev list\` (or with filters: \`--mine\`, \`--team\`, \`--days 7\`, \`--user alice\`).
+
+**Resume a shared session.** User says "resume <name>", "pick up <name>".
+- \`drev resume <name-or-id>\` from inside the destination project root, or with \`--into <path>\`.
+
+**Search / rename / mark / sync / scrub.** Use the matching subcommand. Run \`drev <cmd> --help\` first if uncertain.
+
+## Common errors
+
+- "No default repo configured": run \`drev init\` (a wizard walks the user through GitHub setup, or \`drev init --local\` for offline).
+- "drev: command not found": suggest \`npm install -g drev\`.
+
+## Scope
+
+Don't auto-share without explicit user intent — auto-share is handled separately by hooks. This skill is for explicit user-driven actions during a session.
+`;
 
 interface HookEntry {
   type: string;
@@ -129,7 +163,7 @@ function ensureGroupsArray(value: unknown): HookGroup[] {
   return value.filter((g): g is HookGroup => isPlainObject(g)) as HookGroup[];
 }
 
-export async function runInstall(): Promise<void> {
+async function installHooks(): Promise<void> {
   const { settings } = await readSettings();
   if (settings.hooks === undefined || !isPlainObject(settings.hooks)) {
     settings.hooks = {};
@@ -147,14 +181,12 @@ export async function runInstall(): Promise<void> {
   }
 
   await writeSettingsAtomic(settings);
-  info(`Drev hooks installed in ${settingsPath()}.`);
 }
 
-export async function runUninstall(): Promise<void> {
+async function uninstallHooks(): Promise<{ existed: boolean }> {
   const { settings, existed } = await readSettings();
   if (!existed || !isPlainObject(settings.hooks)) {
-    info('No Drev hooks to uninstall.');
-    return;
+    return { existed: false };
   }
   const hooks = settings.hooks as Record<string, HookGroup[]>;
 
@@ -189,7 +221,132 @@ export async function runUninstall(): Promise<void> {
   }
 
   await writeSettingsAtomic(settings);
-  info('Drev hooks uninstalled.');
+  return { existed: true };
+}
+
+function defaultSkillsRoot(): string {
+  return join(homedir(), '.claude', 'skills');
+}
+
+function skillFilePath(skillsRoot?: string): { dir: string; file: string } {
+  const root = skillsRoot ?? defaultSkillsRoot();
+  const dir = join(root, 'drev');
+  return { dir, file: join(dir, 'SKILL.md') };
+}
+
+export async function installSkill(opts?: { skillsRoot?: string }): Promise<void> {
+  const { dir, file } = skillFilePath(opts?.skillsRoot);
+  await mkdir(dir, { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await writeFile(tmp, DREV_SKILL_CONTENT, 'utf8');
+    await rename(tmp, file);
+  } catch (err) {
+    try {
+      await rm(tmp, { force: true });
+    } catch {
+      // ignore
+    }
+    throw new ConfigError(`Failed to write Drev skill at ${file}.`, { cause: err });
+  }
+}
+
+export async function uninstallSkill(opts?: { skillsRoot?: string }): Promise<void> {
+  const { dir, file } = skillFilePath(opts?.skillsRoot);
+  try {
+    await rm(file, { force: true });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      throw new ConfigError(`Failed to remove Drev skill at ${file}.`, { cause: err });
+    }
+  }
+  // Remove drev/ directory if empty.
+  try {
+    const entries = await readdir(dir);
+    if (entries.length === 0) {
+      await rmdir(dir);
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      // Non-fatal: leave directory in place.
+    }
+  }
+}
+
+export interface SkillStatus {
+  installed: boolean;
+  path: string;
+}
+
+export async function detectSkillInstalled(opts?: {
+  skillsRoot?: string;
+}): Promise<SkillStatus> {
+  const { file } = skillFilePath(opts?.skillsRoot);
+  try {
+    await readFile(file, 'utf8');
+    return { installed: true, path: file };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return { installed: false, path: file };
+    return { installed: false, path: file };
+  }
+}
+
+export async function runInstall(): Promise<void> {
+  let hookErr: unknown = null;
+  try {
+    await installHooks();
+    info(`Drev hooks installed in ${settingsPath()}.`);
+  } catch (err) {
+    hookErr = err;
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`Hook install failed: ${msg}`);
+  }
+
+  try {
+    await installSkill();
+    const { file } = skillFilePath();
+    info(`Drev skill installed at ${file}.`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`Skill install failed: ${msg}`);
+  }
+
+  if (hookErr !== null) {
+    throw hookErr;
+  }
+}
+
+export async function runUninstall(): Promise<void> {
+  let any = false;
+  try {
+    const result = await uninstallHooks();
+    if (result.existed) {
+      info('Drev hooks uninstalled.');
+      any = true;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`Hook uninstall failed: ${msg}`);
+  }
+
+  const before = await detectSkillInstalled();
+  try {
+    await uninstallSkill();
+    if (before.installed) {
+      info(`Drev skill removed from ${before.path}.`);
+      any = true;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`Skill uninstall failed: ${msg}`);
+  }
+
+  if (!any) {
+    info('No Drev hooks or skill to uninstall.');
+  }
 }
 
 interface InstallStatus {
@@ -267,11 +424,14 @@ export async function runStatus(): Promise<void> {
     mode = 'manual';
   }
 
+  const skill = await detectSkillInstalled();
   const lastLine = await lastSweepLine();
 
   process.stdout.write(`hooks (${settingsPath()}):\n`);
   process.stdout.write(`  SessionStart: ${installed.SessionStart ? 'installed' : 'not installed'}\n`);
   process.stdout.write(`  SessionEnd:   ${installed.SessionEnd ? 'installed' : 'not installed'}\n`);
+  process.stdout.write(`skill (${skill.path}):\n`);
+  process.stdout.write(`  drev:         ${skill.installed ? 'installed' : 'not installed'}\n`);
   process.stdout.write(`auto_share:    ${mode}\n`);
   process.stdout.write(`last sweep:    ${lastLine ?? 'never run'}\n`);
 }

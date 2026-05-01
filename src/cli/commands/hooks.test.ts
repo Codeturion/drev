@@ -15,7 +15,16 @@ vi.mock('../ui.js', async () => {
   };
 });
 
-import { runInstall, runStatus, runUninstall } from './hooks.js';
+import {
+  detectSkillInstalled,
+  DREV_SKILL_CONTENT,
+  installSkill,
+  runInstall,
+  runStatus,
+  runUninstall,
+  uninstallSkill,
+} from './hooks.js';
+import { stat } from 'node:fs/promises';
 
 const tmpDirs: string[] = [];
 
@@ -331,5 +340,146 @@ describe('hooks status', () => {
     await runStatus();
 
     expect(captured).toContain('last sweep:    newer entry');
+  });
+});
+
+describe('skill install/uninstall', () => {
+  it('installSkill writes SKILL.md with the documented content', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+    await installSkill({ skillsRoot });
+
+    const file = join(skillsRoot, 'drev', 'SKILL.md');
+    const content = await readFile(file, 'utf8');
+    expect(content).toBe(DREV_SKILL_CONTENT);
+    expect(content).toMatch(/^---\nname: drev/);
+    expect(content).toContain('Drev — Claude Code session sharing');
+  });
+
+  it('installSkill is idempotent (overwrites existing file at our path)', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+    const drevDir = join(skillsRoot, 'drev');
+    await mkdir(drevDir, { recursive: true });
+    await writeFile(join(drevDir, 'SKILL.md'), 'stale content', 'utf8');
+
+    await installSkill({ skillsRoot });
+
+    const content = await readFile(join(drevDir, 'SKILL.md'), 'utf8');
+    expect(content).toBe(DREV_SKILL_CONTENT);
+  });
+
+  it('uninstallSkill removes the file and the empty drev/ dir', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+    await installSkill({ skillsRoot });
+    await uninstallSkill({ skillsRoot });
+
+    await expect(stat(join(skillsRoot, 'drev', 'SKILL.md'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    await expect(stat(join(skillsRoot, 'drev'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('uninstallSkill is a no-op when absent', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+    await expect(uninstallSkill({ skillsRoot })).resolves.toBeUndefined();
+  });
+
+  it('uninstallSkill leaves drev/ dir if it has other files', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+    const drevDir = join(skillsRoot, 'drev');
+    await mkdir(drevDir, { recursive: true });
+    await writeFile(join(drevDir, 'SKILL.md'), DREV_SKILL_CONTENT, 'utf8');
+    await writeFile(join(drevDir, 'extra.md'), 'unrelated', 'utf8');
+
+    await uninstallSkill({ skillsRoot });
+
+    await expect(stat(join(drevDir, 'SKILL.md'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+    // drev/ still present because extra.md remains
+    const s = await stat(drevDir);
+    expect(s.isDirectory()).toBe(true);
+  });
+
+  it('detectSkillInstalled reports installed/not-installed correctly', async () => {
+    const home = await withFakeHome();
+    const skillsRoot = join(home, '.claude', 'skills');
+
+    const before = await detectSkillInstalled({ skillsRoot });
+    expect(before.installed).toBe(false);
+    expect(before.path).toBe(join(skillsRoot, 'drev', 'SKILL.md'));
+
+    await installSkill({ skillsRoot });
+    const after = await detectSkillInstalled({ skillsRoot });
+    expect(after.installed).toBe(true);
+    expect(after.path).toBe(join(skillsRoot, 'drev', 'SKILL.md'));
+  });
+});
+
+describe('runInstall installs both hooks AND skill', () => {
+  it('writes hook entries to settings.json and skill file under ~/.claude/skills/drev/', async () => {
+    const home = await withFakeHome();
+    await runInstall();
+
+    // Hooks present
+    const s = await readSettings(home);
+    const hooks = s['hooks'] as Record<string, unknown>;
+    expectDrevGroup(hooks['SessionStart']);
+    expectDrevGroup(hooks['SessionEnd']);
+
+    // Skill present
+    const skillFile = join(home, '.claude', 'skills', 'drev', 'SKILL.md');
+    const content = await readFile(skillFile, 'utf8');
+    expect(content).toBe(DREV_SKILL_CONTENT);
+  });
+});
+
+describe('runUninstall removes both hooks AND skill', () => {
+  it('removes hook entries and the skill file', async () => {
+    const home = await withFakeHome();
+    await runInstall();
+    await runUninstall();
+
+    const s = await readSettings(home);
+    expect(s['hooks']).toBeUndefined();
+    await expect(
+      stat(join(home, '.claude', 'skills', 'drev', 'SKILL.md')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+});
+
+describe('runStatus reports skill state', () => {
+  let writeSpy: ReturnType<typeof vi.spyOn>;
+  let captured: string;
+
+  beforeEach(() => {
+    captured = '';
+    writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
+      captured += typeof chunk === 'string' ? chunk : (chunk as Buffer).toString('utf8');
+      return true;
+    });
+  });
+
+  afterEach(() => {
+    writeSpy.mockRestore();
+  });
+
+  it('reports skill: not installed when absent', async () => {
+    await withFakeHome();
+    await runStatus();
+    expect(captured).toContain('drev:         not installed');
+  });
+
+  it('reports skill: installed when present', async () => {
+    const home = await withFakeHome();
+    await installSkill({ skillsRoot: join(home, '.claude', 'skills') });
+    await runStatus();
+    expect(captured).toContain('drev:         installed');
   });
 });

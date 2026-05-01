@@ -96,7 +96,15 @@ vi.mock('node:child_process', async () => {
   return { execFile };
 });
 
+// Mock hooks.js so init's auto-install call can be inspected without touching ~/.claude.
+vi.mock('./hooks.js', () => {
+  return {
+    runInstall: vi.fn(async () => {}),
+  };
+});
+
 import * as gitOps from '../../core/git-ops.js';
+import * as hooks from './hooks.js';
 import { runInit } from './init.js';
 
 const tmpDirs: string[] = [];
@@ -612,6 +620,75 @@ describe('runInit SHORTHAND mode', () => {
 });
 
 // -------- LOCAL mode --------
+
+describe('runInit auto-install (CORRECTIONS.md §3)', () => {
+  beforeEach(() => {
+    vi.mocked(hooks.runInstall).mockReset();
+    vi.mocked(hooks.runInstall).mockResolvedValue(undefined);
+  });
+
+  it('default: calls hooks.runInstall after a successful init', async () => {
+    const home = await withFakeHome();
+
+    await runInit('https://github.com/org/repo.git', {});
+
+    expect(vi.mocked(hooks.runInstall)).toHaveBeenCalledTimes(1);
+    // user config still written
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['default_repo']).toBe(join(home, '.drev', 'repos', 'repo'));
+  });
+
+  it('--no-auto-share (autoShare: false): skips hooks.runInstall', async () => {
+    await withFakeHome();
+
+    await runInit('https://github.com/org/repo.git', { autoShare: false });
+
+    expect(vi.mocked(hooks.runInstall)).not.toHaveBeenCalled();
+  });
+
+  it('runInstall failure during init: warns but init still resolves', async () => {
+    const home = await withFakeHome();
+    vi.mocked(hooks.runInstall).mockRejectedValueOnce(
+      new Error('hook install boom'),
+    );
+
+    await expect(
+      runInit('https://github.com/org/repo.git', {}),
+    ).resolves.toBeUndefined();
+
+    expect(vi.mocked(hooks.runInstall)).toHaveBeenCalledTimes(1);
+    // user config was still written despite the install failure
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['default_repo']).toBe(join(home, '.drev', 'repos', 'repo'));
+  });
+
+  it('skipped on already-initialized guard (no install side effect)', async () => {
+    const home = await withFakeHome();
+    const cfgDir = join(home, '.drev');
+    await mkdir(cfgDir, { recursive: true });
+    await writeFile(
+      join(cfgDir, 'config.yaml'),
+      yaml.dump({
+        schema_version: 1,
+        default_repo: '/preexisting',
+        auto_share: 'auto-team',
+        auto_share_idle_threshold_seconds: 60,
+        auto_summarize: false,
+        ignore_patterns: [],
+        ignore_paths: [],
+      }),
+      'utf8',
+    );
+
+    await runInit('https://github.com/org/repo.git', {});
+
+    expect(vi.mocked(hooks.runInstall)).not.toHaveBeenCalled();
+  });
+});
 
 describe('runInit LOCAL mode', () => {
   it('creates default bare repo, clones, scaffolds', async () => {

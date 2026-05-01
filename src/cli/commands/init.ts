@@ -9,6 +9,7 @@ import { ensureScaffold } from '../../core/repo.js';
 import { readUserConfig, writeUserConfig } from '../../core/config.js';
 import { RepoError } from '../../lib/errors.js';
 import { confirm, info, prompt, spinner, warn } from '../ui.js';
+import { runInstall as runHooksInstall } from './hooks.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +25,7 @@ interface InitOptions {
   local?: boolean;
   at?: string;
   reinit?: boolean;
+  autoShare?: boolean;
 }
 
 interface ExecChildError extends Error {
@@ -44,6 +46,7 @@ export function register(program: Command): void {
     .option('--local', 'create a local-only bare repo (no GitHub)')
     .option('--at <path>', 'path for the local bare repo (use with --local)')
     .option('--reinit', 'replace an existing default repo binding')
+    .option('--no-auto-share', 'skip auto-installing Claude Code hooks and the drev skill')
     .action(async (target: string | undefined, opts: InitOptions) => {
       await runInit(target, opts);
     });
@@ -66,16 +69,32 @@ export async function runInit(
   switch (mode.kind) {
     case 'wizard':
       await runWizard(opts);
-      return;
+      break;
     case 'url':
       await executeUrlFlow(mode.url, { name: opts.name });
-      return;
+      break;
     case 'shorthand':
       await executeShorthandFlow(mode.shorthand, opts);
-      return;
+      break;
     case 'local':
       await executeLocalFlow(opts);
-      return;
+      break;
+  }
+
+  await maybeAutoInstall(opts);
+}
+
+async function maybeAutoInstall(opts: InitOptions): Promise<void> {
+  if (opts.autoShare === false) {
+    info('Auto-share skipped. Run `drev hooks install` to enable later.');
+    return;
+  }
+  try {
+    await runHooksInstall();
+    info('Auto-share enabled. Hooks + skill installed. Run `drev hooks uninstall` to disable.');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warn(`Auto-install of hooks/skill failed: ${msg}. Run \`drev hooks install\` to retry.`);
   }
 }
 

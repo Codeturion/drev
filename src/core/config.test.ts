@@ -35,12 +35,16 @@ describe('defaultUserConfig', () => {
     expect(defaultUserConfig()).toEqual({
       schema_version: 1,
       default_repo: null,
-      auto_share: 'manual',
+      auto_share: 'auto-team',
       auto_share_idle_threshold_seconds: 60,
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
     });
+  });
+
+  it('auto_share default is auto-team (CORRECTIONS.md §3)', () => {
+    expect(defaultUserConfig().auto_share).toBe('auto-team');
   });
 
   it('returns a fresh object each call (no shared mutation)', () => {

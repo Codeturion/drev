@@ -33,7 +33,7 @@ export function defaultUserConfig(): UserConfig {
   return {
     schema_version: 1,
     default_repo: null,
-    auto_share: 'manual',
+    auto_share: 'auto-team',
     auto_share_idle_threshold_seconds: 60,
     auto_summarize: false,
     ignore_patterns: [],
