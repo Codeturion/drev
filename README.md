@@ -147,10 +147,11 @@ Each command supports `--help` for the full option list.
 | Command | Purpose |
 |---|---|
 | `drev init` | one-time setup |
-| `drev share [--name N]` | share the most recent session |
+| `drev share [--name N] [--auto]` | share the most recent session (`--auto` skips prompts; non-TTY contexts auto-detect) |
 | `drev backup --name N` | private backup of the most recent session |
 | `drev list [filters]` | browse available sessions (filters: `--mine`, `--team`, `--days N`, `--user X`, …) |
-| `drev resume <name-or-id>` | pull, rewrite paths, and resume a shared session |
+| `drev resume <name-or-id> [--force] [--checkout]` | pull, rewrite paths, and resume a shared session |
+| `drev export <name-or-id> [--out <path>]` | render a shared session as a self-contained HTML transcript |
 | `drev rename <old> <new>` | rename your share (date prefix preserved) |
 | `drev mark <X> --private` | change visibility (also `--team`, `--delete`) |
 | `drev search <query>` | substring across name, title, summary, files-touched |
@@ -158,6 +159,28 @@ Each command supports `--help` for the full option list.
 | `drev scrub <X> --confirm` | rewrite history to remove a leak (requires `git-filter-repo`) |
 | `drev hooks install \| uninstall` | manage Claude Code triggers |
 | `drev autoshare add \| remove \| list \| status \| on \| private \| off` | manage the per-project whitelist and mode |
+
+#### `drev resume` flags
+
+When the working tree on the receiver's machine has drifted from the commit recorded with the session (`commit_sha` in `meta.yaml`), file paths and line numbers in the transcript can point at code that has moved or been rewritten. Two flags handle this:
+
+- `--checkout` runs `git checkout <commit_sha>` on the destination repo so the tree matches what the sender saw. A dirty working tree is auto-stashed first; drev prints `git checkout - && git stash pop` so you can recover when you're done.
+- `--force` overwrites an existing local session JSONL without prompting (useful when re-resuming after a remote update).
+
+#### `drev export` (HTML transcripts)
+
+For reviewers who don't have Claude Code installed (PMs, designers, leads), render a session as a static HTML file:
+
+```bash
+drev export auth-fix                       # writes <repo>/transcripts/auth-fix.html
+drev export auth-fix --out ~/share/x.html  # custom path
+```
+
+The output is self-contained: inlined CSS, no JS, no external dependencies. Tool calls and thinking blocks are collapsed via native `<details>` so the prose reads cleanly; click to expand. Open the file in any browser, attach it to a ticket, drop it on a wiki, or commit it back to the sessions repo if your team wants shareable URLs in git history. Drev does not pick a hosting policy, where the transcripts go is up to you.
+
+#### `--auto` and non-interactive contexts
+
+`drev share` and `drev init` detect non-TTY stdin (Claude's Bash tool, scripts, CI) automatically and skip prompts that would hang. Pass `--auto` to `drev share` to force this behavior even on a real TTY, useful in shell scripts that wrap drev. The first-share redaction summary still prints as info so you see what was scrubbed.
 
 ### Non-GitHub hosts (GitLab, Bitbucket, self-hosted)
 
