@@ -38,5 +38,8 @@ jobs:
             exit 1
           fi
 
-      - name: Publish (npm Trusted Publishing via OIDC)
-        run: npm publish --access public
+      # --provenance requires the repo to be public; npm rejects provenance
+      # claims from private repos. If the repo is still private when this
+      # runs, drop --provenance temporarily.
+      - name: Publish (npm Trusted Publishing via OIDC, with provenance)
+        run: npm publish --access public --provenance
