@@ -51,14 +51,19 @@ function scrubThinkingSignatures(obj: Record<string, unknown>): boolean {
   for (const key of Object.keys(obj)) {
     const val = obj[key];
     if (Array.isArray(val)) {
-      for (const item of val) {
+      const filtered = val.filter((item) => {
         if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-          const block = item as Record<string, unknown>;
-          if (block['type'] === 'thinking' && 'signature' in block) {
-            delete block['signature'];
-            changed = true;
-          }
-          if (scrubThinkingSignatures(block)) changed = true;
+          return (item as Record<string, unknown>)['type'] !== 'thinking';
+        }
+        return true;
+      });
+      if (filtered.length !== val.length) {
+        obj[key] = filtered;
+        changed = true;
+      }
+      for (const item of (obj[key] as unknown[])) {
+        if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+          if (scrubThinkingSignatures(item as Record<string, unknown>)) changed = true;
         }
       }
     } else if (val !== null && typeof val === 'object' && !Array.isArray(val)) {

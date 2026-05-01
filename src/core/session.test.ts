@@ -381,7 +381,7 @@ describe('readSessionStats', () => {
 });
 
 describe('stripThinkingSignatures', () => {
-  it('removes signature from thinking blocks in assistant messages', () => {
+  it('removes thinking blocks entirely from assistant messages', () => {
     const line = JSON.stringify({
       type: 'assistant',
       message: {
@@ -393,9 +393,8 @@ describe('stripThinkingSignatures', () => {
     });
     const result = stripThinkingSignatures(line);
     const parsed = JSON.parse(result);
-    const block = parsed.message.content[0];
-    expect(block.thinking).toBe('some thoughts');
-    expect('signature' in block).toBe(false);
+    expect(parsed.message.content).toHaveLength(1);
+    expect(parsed.message.content[0].type).toBe('text');
   });
 
   it('leaves non-thinking blocks untouched', () => {
@@ -410,14 +409,14 @@ describe('stripThinkingSignatures', () => {
         content: [
           { type: 'thinking', thinking: 'a', signature: 'sig_1' },
           { type: 'thinking', thinking: 'b', signature: 'sig_2' },
+          { type: 'text', text: 'result' },
         ],
       },
     });
     const result = stripThinkingSignatures(line);
     const parsed = JSON.parse(result);
-    for (const block of parsed.message.content) {
-      expect('signature' in block).toBe(false);
-    }
+    expect(parsed.message.content).toHaveLength(1);
+    expect(parsed.message.content[0].type).toBe('text');
   });
 
   it('passes through empty lines unchanged', () => {
@@ -434,11 +433,12 @@ describe('stripThinkingSignatures', () => {
     const line1 = JSON.stringify({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } });
     const line2 = JSON.stringify({
       type: 'assistant',
-      message: { content: [{ type: 'thinking', thinking: 'x', signature: 'sig_x' }] },
+      message: { content: [{ type: 'thinking', thinking: 'x', signature: 'sig_x' }, { type: 'text', text: 'y' }] },
     });
     const result = stripThinkingSignatures(`${line1}\n${line2}`);
     const [r1, r2] = result.split('\n');
     expect(JSON.parse(r1)).toEqual(JSON.parse(line1));
-    expect('signature' in JSON.parse(r2).message.content[0]).toBe(false);
+    expect(JSON.parse(r2).message.content).toHaveLength(1);
+    expect(JSON.parse(r2).message.content[0].type).toBe('text');
   });
 });
