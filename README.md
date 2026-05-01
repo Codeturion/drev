@@ -1,6 +1,15 @@
 # Drev
 
-Share Claude Code sessions through a Git repo. The producer runs `drev share`, the consumer runs `drev resume`, and native `claude --resume` continues with full transcript fidelity. Built around a bundled Claude Code skill so you don't have to leave the conversation.
+**Drev makes Claude Code sessions durable.** When you hand work off today, your code and a Slack thread survive. The actual Claude Code session where you tried, failed, and eventually figured it out dies with the terminal. Drev moves that session to a Git repo your team controls. Teammates resume where you left off with every tool call intact. Solo, your sessions become a personal memory across machines and projects.
+
+The bundled Claude Code skill makes the flow feel native: just say *"save this session as foo"* and Claude runs `drev share` for you. Native `claude --resume` continues the receiver's session with full transcript fidelity.
+
+| Today's handoff | With drev |
+|---|---|
+| Slack thread summarizing what you tried | Full Claude Code transcript |
+| Commit messages reconstructing the path | Every tool call, every read, every edit |
+| Loom video (sometimes) | Interactive: the receiver can continue, ask Claude to elaborate, or take a different path |
+| Lost when the engineer logs off | Persists in your team's Git repo |
 
 > v0. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/CORRECTIONS.md](./docs/CORRECTIONS.md). License: MIT.
 
