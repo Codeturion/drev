@@ -15,6 +15,7 @@ import * as scrub from './commands/scrub.js';
 import * as hooks from './commands/hooks.js';
 import * as autoshare from './commands/autoshare.js';
 import * as autoshareSweep from './commands/autoshare-sweep.js';
+import * as exportCmd from './commands/export.js';
 
 type CommandModule = { register?: (program: CommanderCommand) => void };
 
@@ -32,6 +33,7 @@ const modules: CommandModule[] = [
   hooks,
   autoshare,
   autoshareSweep,
+  exportCmd,
 ];
 
 async function main(): Promise<void> {
