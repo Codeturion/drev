@@ -7,7 +7,7 @@
 ## 0. Project Identity
 
 **Name:** Drev
-**One-line pitch:** A CLI and MCP server that lets engineers resume each other's Claude Code sessions through a shared Git repo.
+**One-line pitch:** A CLI that lets engineers resume each other's Claude Code sessions through a shared Git repo.
 **License:** MIT
 **Language:** TypeScript (Node.js ≥20)
 **Distribution:** npm (`drev`), Claude Code plugin marketplace (v0.1)
@@ -67,7 +67,7 @@ No branches for sessions, forks, or visibility. Concurrent shares use per-user d
 No auth. `git config user.email` is the identity. Anyone with repo write access can act as anyone (same trust model as Git itself).
 
 ### 3.6 TypeScript on Node, Not Go or Python
-Cross-platform via Node runtime. Audience already has Node (Claude Code requires it). Mature MCP SDK. npm install is one line.
+Cross-platform via Node runtime. Audience already has Node (Claude Code requires it). npm install is one line.
 
 ### 3.7 Path Rewriting Is Mandatory
 The load-bearing technical piece. Sessions captured on one machine reference absolute paths that don't exist on another machine. Drev rewrites these on resume. Without this, the product does not work.
@@ -199,7 +199,7 @@ src/
 │   │   ├── hooks.ts                        # install/uninstall/status
 │   │   └── autoshare-sweep.ts              # internal command called by hooks
 │   └── ui.ts                               # console output helpers (chalk, ora)
-├── core/                                    # pure logic, no CLI/MCP dependencies
+├── core/                                    # pure logic, no CLI dependencies
 │   ├── config.ts                           # load/save user + repo config
 │   ├── identity.ts                         # current user from git config
 │   ├── repo.ts                             # local repo clone management
@@ -211,15 +211,12 @@ src/
 │   ├── git-ops.ts                          # simple-git wrappers
 │   ├── outbox.ts                           # offline queue
 │   └── name-resolver.ts                    # name-or-id → session resolution
-├── mcp/
-│   ├── server.ts                           # MCP server entry
-│   └── tools.ts                            # tool definitions
 └── lib/
     ├── errors.ts                           # typed error classes
     └── logger.ts                           # structured logging to ~/.drev/logs
 ```
 
-**Critical structural rule:** `core/` modules have no imports from `cli/` or `mcp/`. Both interfaces are thin wrappers over `core/`. This is the most important architectural constraint in the codebase. Tests live next to logic in `core/`.
+**Critical structural rule:** `core/` modules have no imports from `cli/`. The CLI is a thin wrapper over `core/`. This is the most important architectural constraint in the codebase. Tests live next to logic in `core/`.
 
 ## 7. Path Rewriting (Load-Bearing)
 
@@ -584,54 +581,25 @@ Implemented in `src/cli/commands/autoshare-sweep.ts`. Called by the `SessionEnd`
 
 If 3+ consecutive sweep runs fail, the next interactive `drev` command prints a warning: `⚠ Auto-share has failed N times. Run 'drev sync' to investigate.`
 
-## 11. MCP Server
+## 11. Distribution
 
-### 11.1 Surface
+### 11.1 npm
 
-The MCP server in `src/mcp/server.ts` exposes these tools, each calling the same `core/` functions as the CLI:
-
-| Tool | Description |
-|------|-------------|
-| `drev_share` | Share the current Claude Code session. Optional name and visibility. |
-| `drev_list` | List available team sessions, with filters. |
-| `drev_resume` | Resume a session by name or ID. |
-| `drev_search` | Search across session metadata. |
-| `drev_rename` | Rename one of your own sessions. |
-| `drev_mark` | Change visibility or delete a session. |
-
-Each tool has a JSON Schema input definition matching the corresponding CLI flags.
-
-### 11.2 Transport
-
-stdio. Run as a Claude Code MCP server via:
-```
-claude mcp add drev -- drev-mcp
-```
-
-### 11.3 Behavior Parity
-
-CLI and MCP must produce identical output for equivalent operations. Both consume the same `core/` modules. Tests run against `core/`, then both surfaces are verified to call through correctly.
-
-## 12. Distribution
-
-### 12.1 npm
-
-Package name: `drev`
-`package.json` declares two binaries:
+Package name: `drev-cli` (the unscoped `drev` was already taken on npm). Bin name remains `drev`.
+`package.json` declares one binary:
 ```json
 "bin": {
-  "drev": "./dist/cli.js",
-  "drev-mcp": "./dist/mcp.js"
+  "drev": "./dist/cli.js"
 }
 ```
-Both built with `tsup`, with proper shebangs.
+Built with `tsup`, with proper shebang.
 
 Install:
 ```
-npm install -g drev
+npm install -g drev-cli
 ```
 
-### 12.2 Claude Code Plugin (v0.1)
+### 11.2 Claude Code Plugin (v0.1)
 
 Add `.claude-plugin/plugin.json` and `marketplace.json` per Claude Code plugin spec. Distribute via:
 ```
@@ -639,7 +607,7 @@ claude plugin marketplace add codeturion/drev
 claude plugin install drev@drev-marketplace
 ```
 
-### 12.3 No Native Binary in v0
+### 11.3 No Native Binary in v0
 
 No `pkg`, `nexe`, or Bun-compiled binary. Node is a dependency.
 
@@ -687,12 +655,11 @@ If this fails, halt and reassess. The whole architecture depends on it working.
 
 All commands in §9. Auto-share hooks via §9.11 (opt-in). Testing per §13.
 
-**Excluded from v0:** MCP server, Claude Code plugin packaging, web UI (never), encryption, forking with lineage, full-text search.
+**Excluded from v0:** Claude Code plugin packaging, web UI (never), encryption, forking with lineage, full-text search.
 
 ### 14.3 v0.1 (1-2 Weeks After v0)
 
-- MCP server (§11)
-- Claude Code plugin marketplace package (§12.2)
+- Claude Code plugin marketplace package (§11.2)
 - Polish and bug fixes from v0 user feedback
 - Optional API-based title/summary auto-generation
 
@@ -766,7 +733,7 @@ When Claude Code is asked to implement Drev, it should:
 1. **Read this file first.** All decisions are recorded here.
 2. **Consult `TASKS/<task>.md`** for the specific scope of the current task. Tasks are intentionally narrow.
 3. **Not re-litigate locked decisions in §3.** If a task seems to require violating one, stop and ask.
-4. **Implement `core/` modules with no `cli/` or `mcp/` imports.**
+4. **Implement `core/` modules with no `cli/` imports.**
 5. **Write tests alongside implementation.** Aim for the coverage targets in §13.
 6. **Treat the path rewriter and redaction system as load-bearing.** Extra scrutiny, extra tests.
 7. **Defer features explicitly listed as v0.1+ (§14.3-5).** No premature implementation.

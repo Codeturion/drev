@@ -6,7 +6,7 @@ If you're at Anthropic and reading this as evaluation material, the short answer
 
 ## What was actually built
 
-Drev is a TypeScript CLI plus optional MCP-style integration that lets engineers share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume`, native `claude --resume` continues with full transcript fidelity. The load-bearing technical pieces are path rewriting (sessions reference absolute paths that don't exist on the receiver) and secret redaction (sessions contain real-world credentials).
+Drev is a TypeScript CLI that lets engineers share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume`, native `claude --resume` continues with full transcript fidelity. The load-bearing technical pieces are path rewriting (sessions reference absolute paths that don't exist on the receiver) and secret redaction (sessions contain real-world credentials).
 
 Numbers, all from the repo:
 

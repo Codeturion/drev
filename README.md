@@ -32,7 +32,7 @@ The bundled Claude Code skill makes the flow feel native: just say *"save this s
 ## <img src="./assets/icons/quick-start.png" alt="" width="40" align="absmiddle"> Quick start
 
 ```bash
-npm install -g drev
+npm install -g drev-cli
 drev init
 ```
 

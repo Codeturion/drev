@@ -19,7 +19,7 @@ description: Share, list, search, rename, mark, or back up Claude Code sessions 
 
 # Drev: Claude Code session sharing
 
-Drev shares Claude Code session JSONLs through a Git repo. Commands run via the Bash tool. Drev must be on PATH; if not, suggest \`npm install -g drev\`.
+Drev shares Claude Code session JSONLs through a Git repo. Commands run via the Bash tool. Drev must be on PATH; if not, suggest \`npm install -g drev-cli\`.
 
 ## Commands you can run from inside a session
 
@@ -49,7 +49,7 @@ Do NOT run \`drev resume\` without \`--no-launch\` from inside an active session
 ## Common errors
 
 - "No default repo configured": run \`drev init\` (a wizard walks the user through GitHub setup, or \`drev init --local\` for offline).
-- "drev: command not found": suggest \`npm install -g drev\`.
+- "drev: command not found": suggest \`npm install -g drev-cli\`.
 
 ## Scope
 

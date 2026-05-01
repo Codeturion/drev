@@ -151,7 +151,7 @@ Final §16 Definition-of-Done items.
 
 Listed here so we don't drift. Cross-reference §14:
 
-- MCP server (§14.3 v0.1), `src/mcp/` stays empty
+- MCP server (dropped from roadmap entirely; the bundled skill covers Claude Code integration)
 - Claude Code plugin marketplace package (§14.3 v0.1)
 - `parent_session` lineage / forking (§14.4 v0.5)
 - Encryption (§14.4 v0.5)
