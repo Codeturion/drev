@@ -172,12 +172,12 @@ export async function executeShare(
 
   // 6b. Entropy safety net (item 3): scan the redacted output for high-entropy
   // tokens the regex layer didn't catch. Warn-only; never blocks the share.
-  // Combine parent + subagent payloads so a leak in a subagent transcript is
-  // not invisible just because the parent looked clean.
-  const allRedactedText = [redactedJsonl, ...subagentRedactions.map((s) => s.output)].join(
-    '\n',
-  );
-  const suspicious = findSuspiciousTokens(allRedactedText);
+  // Pass parent + each subagent payload as separate inputs so the scanner
+  // doesn't allocate a concatenated copy of the entire session.
+  const suspicious = findSuspiciousTokens([
+    redactedJsonl,
+    ...subagentRedactions.map((s) => s.output),
+  ]);
   if (suspicious.count > 0) {
     const sampleHint = suspicious.samples.length > 0
       ? ` Examples: ${suspicious.samples.join(', ')}.`
