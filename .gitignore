@@ -8,3 +8,7 @@ coverage/
 .drev/
 .claude/settings.local.json
 scripts/
+*.aseprite~
+.idea/
+.vscode/
+*.tgz
