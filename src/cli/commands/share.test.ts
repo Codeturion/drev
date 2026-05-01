@@ -462,6 +462,27 @@ describe('executeShare — first-share confirmation', () => {
     expect(ui.confirm).not.toHaveBeenCalled();
     expect(result.pushed).toBe(true);
   });
+
+  // T30: when invoked from a non-TTY context (Claude's Bash tool, scripts, --auto),
+  // the first-share path must still surface the redaction summary as info so the
+  // caller knows what was scrubbed, even though it can't prompt.
+  it('logs the redaction summary as info when interactive is false on first share', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    await setupHappyMocks({
+      repoDir,
+      cwd: '/p/q',
+      metaFiles: [],
+      redactionCounts: { github_pat: 3 },
+    });
+
+    const result = await executeShare({ name: 'auto', interactive: false });
+
+    expect(ui.confirm).not.toHaveBeenCalled();
+    expect(result.pushed).toBe(true);
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.startsWith('First share to '))).toBe(true);
+    expect(infoCalls.some((m) => m.includes('3 github_pat'))).toBe(true);
+  });
 });
 
 describe('executeShare — subagent JSONLs', () => {

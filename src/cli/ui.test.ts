@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { info, warn, errorOut, table, confirm, prompt } from './ui.js';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { info, warn, errorOut, table, confirm, prompt, isInteractive } from './ui.js';
+import { ConfigError } from '../lib/errors.js';
 
 let nextAnswer = '';
 vi.mock('node:readline', () => ({
@@ -14,6 +15,25 @@ vi.mock('node:readline', () => ({
     close: () => {},
   }),
 }));
+
+// Most tests assume an interactive TTY so the existing readline mock is exercised.
+// Individual non-TTY tests override these flags.
+const originalStdinTTY = process.stdin.isTTY;
+const originalStdoutTTY = process.stdout.isTTY;
+beforeEach(() => {
+  Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+  Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+});
+afterEach(() => {
+  Object.defineProperty(process.stdin, 'isTTY', {
+    value: originalStdinTTY,
+    configurable: true,
+  });
+  Object.defineProperty(process.stdout, 'isTTY', {
+    value: originalStdoutTTY,
+    configurable: true,
+  });
+});
 
 function captureStdout(): { restore: () => void; output: () => string } {
   const chunks: string[] = [];
@@ -191,5 +211,64 @@ describe('prompt', () => {
 
   it('trims newlines and tabs', async () => {
     expect(await runPrompt('\n\tfoo/bar\t\n')).toBe('foo/bar');
+  });
+});
+
+describe('isInteractive', () => {
+  it('returns true when both stdin and stdout are TTYs', () => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    expect(isInteractive()).toBe(true);
+  });
+
+  it('returns false when stdin is not a TTY', () => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+    Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when stdout is not a TTY', () => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+    Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when isTTY is undefined (piped stdin)', () => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: undefined, configurable: true });
+    expect(isInteractive()).toBe(false);
+  });
+});
+
+describe('confirm non-interactive', () => {
+  beforeEach(() => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+  });
+
+  it('returns false by default without invoking readline', async () => {
+    nextAnswer = 'y'; // would be true if readline ran
+    expect(await confirm('proceed?')).toBe(false);
+  });
+
+  it('returns the override when defaultIfNonInteractive is true', async () => {
+    nextAnswer = 'n';
+    expect(await confirm('proceed?', { defaultIfNonInteractive: true })).toBe(true);
+  });
+
+  it('returns false when defaultIfNonInteractive is explicitly false', async () => {
+    expect(await confirm('proceed?', { defaultIfNonInteractive: false })).toBe(false);
+  });
+});
+
+describe('prompt non-interactive', () => {
+  beforeEach(() => {
+    Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+  });
+
+  it('throws ConfigError instead of blocking', async () => {
+    await expect(prompt('paste url: ')).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it("error message hints at passing a CLI flag", async () => {
+    await expect(prompt('paste url: ')).rejects.toThrow(/CLI flag/i);
   });
 });

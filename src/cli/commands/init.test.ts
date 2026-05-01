@@ -117,6 +117,13 @@ async function makeTmp(prefix: string): Promise<string> {
 
 const ORIGINAL_HOME = process.env['HOME'];
 const ORIGINAL_USERPROFILE = process.env['USERPROFILE'];
+const ORIGINAL_STDIN_TTY = process.stdin.isTTY;
+const ORIGINAL_STDOUT_TTY = process.stdout.isTTY;
+
+function setTTY(value: boolean): void {
+  Object.defineProperty(process.stdin, 'isTTY', { value, configurable: true });
+  Object.defineProperty(process.stdout, 'isTTY', { value, configurable: true });
+}
 
 async function withFakeHome(): Promise<string> {
   const home = await makeTmp('drev-home-');
@@ -151,6 +158,9 @@ beforeEach(() => {
   nextConfirmAnswers = [];
   nextPromptAnswers = [];
   execFileHandler = () => ({ stdout: '' });
+  // Wizard tests assume an interactive terminal; the new T30 refusal test
+  // overrides this. Vitest workers default to non-TTY otherwise.
+  setTTY(true);
 });
 
 afterEach(async () => {
@@ -163,6 +173,14 @@ afterEach(async () => {
   else process.env['HOME'] = ORIGINAL_HOME;
   if (ORIGINAL_USERPROFILE === undefined) delete process.env['USERPROFILE'];
   else process.env['USERPROFILE'] = ORIGINAL_USERPROFILE;
+  Object.defineProperty(process.stdin, 'isTTY', {
+    value: ORIGINAL_STDIN_TTY,
+    configurable: true,
+  });
+  Object.defineProperty(process.stdout, 'isTTY', {
+    value: ORIGINAL_STDOUT_TTY,
+    configurable: true,
+  });
 });
 
 // -------- POWER-URL mode (preserved from prior coverage) --------
@@ -868,5 +886,44 @@ describe('runInit LOCAL mode', () => {
     });
     // git init --bare must not have run.
     expect(gitOps.clone).not.toHaveBeenCalled();
+  });
+});
+
+// T30: the wizard requires a TTY because it calls ui.prompt/ui.confirm.
+// When invoked without a TTY (e.g., from Claude's Bash tool), it must refuse
+// fast with a clear error pointing at the non-interactive arg forms instead
+// of hanging on the first readline question.
+describe('runInit wizard non-TTY refusal (T30)', () => {
+  it('refuses to enter the wizard when stdin is not a TTY', async () => {
+    await withFakeHome();
+    setTTY(false);
+    await expect(runInit(undefined, {})).rejects.toMatchObject({
+      name: 'RepoError',
+      message: expect.stringContaining('requires an interactive terminal'),
+    });
+  });
+
+  it('refusal message names the alternative arg forms', async () => {
+    await withFakeHome();
+    setTTY(false);
+    await expect(runInit(undefined, {})).rejects.toThrow(
+      /URL.*owner\/name shorthand.*--local/,
+    );
+  });
+
+  it('does not invoke gh or any prompt before the refusal', async () => {
+    await withFakeHome();
+    setTTY(false);
+    await runInit(undefined, {}).catch(() => {});
+    expect(gitOps.isAvailable).not.toHaveBeenCalledWith('gh');
+  });
+
+  it('non-TTY path with an explicit URL still succeeds (does not hit wizard)', async () => {
+    await withFakeHome();
+    setTTY(false);
+    // The URL flow doesn't enter runWizard, so the refusal should not fire.
+    await expect(
+      runInit('https://github.com/team/sessions.git', {}),
+    ).resolves.toBeUndefined();
   });
 });
