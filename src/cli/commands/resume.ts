@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { Command } from 'commander';
 import * as gitOps from '../../core/git-ops.js';
@@ -14,12 +14,14 @@ import {
 import { rewritePaths } from '../../core/path-rewriter.js';
 import { stripThinkingSignatures } from '../../core/session.js';
 import { readUserConfig } from '../../core/config.js';
-import { ConfigError } from '../../lib/errors.js';
-import { info, warn } from '../ui.js';
+import { ConfigError, RepoError } from '../../lib/errors.js';
+import { confirm, info, isInteractive, warn } from '../ui.js';
 
 export interface ResumeOptions {
   into?: string;
   launch?: boolean;
+  force?: boolean;
+  checkout?: boolean;
 }
 
 export function register(program: Command): void {
@@ -28,6 +30,8 @@ export function register(program: Command): void {
     .description('Resume a session by name or ID; launches Claude Code by default.')
     .option('--into <path>', 'destination project root (overrides auto-detection)')
     .option('--no-launch', 'prepare the session but do not spawn Claude Code')
+    .option('--force', 'overwrite an existing local session file without prompting')
+    .option('--checkout', 'on drift, git checkout the recorded commit_sha (auto-stashes if dirty)')
     .action(async (query: string, opts: ResumeOptions) => {
       await runResume(query, opts);
     });
@@ -55,28 +59,77 @@ export async function runResume(query: string, opts: ResumeOptions): Promise<voi
   const subagentEntries = await listSubagentFiles(subagentSourceDir);
 
   const destRoot = await determineDestRoot(opts.into);
+  const id = resolved.meta.id;
+  const displayName = resolved.meta.name ?? id.slice(0, 8);
 
-  // Drift warning: compare meta.commit_sha to local HEAD; warn (don't block) if different.
+  // Drift detection: compare meta.commit_sha to local HEAD. The result drives
+  // both the warning and --checkout below.
+  let driftSha: string | null = null;
+  let isGitRepo = false;
   if (resolved.meta.commit_sha) {
     try {
       const localHead = await gitOps.revParse(destRoot, 'HEAD');
+      isGitRepo = true;
       if (localHead !== resolved.meta.commit_sha) {
-        warn(
-          `working tree HEAD (${localHead.slice(0, 8)}) differs from session commit_sha (${resolved.meta.commit_sha.slice(0, 8)}); files may have moved since the session was captured`,
-        );
+        driftSha = resolved.meta.commit_sha;
+        if (!opts.checkout) {
+          warn(
+            `working tree HEAD (${localHead.slice(0, 8)}) differs from session commit_sha (${resolved.meta.commit_sha.slice(0, 8)}); files may have moved since the session was captured`,
+          );
+        }
       }
     } catch {
       // destRoot may not be a git repo; drift check is best-effort.
     }
   }
 
+  // --checkout: pin the working tree to the recorded commit so paths and line
+  // numbers in the transcript still resolve. Auto-stashes a dirty tree.
+  if (opts.checkout) {
+    if (!resolved.meta.commit_sha) {
+      throw new RepoError(
+        '--checkout requires a session with a recorded commit_sha; this one has none.',
+      );
+    }
+    if (!isGitRepo) {
+      throw new RepoError(
+        `--checkout requires the destination to be a git repo (got ${destRoot}).`,
+      );
+    }
+    if (driftSha !== null) {
+      const clean = await gitOps.isClean(destRoot);
+      let stashed = false;
+      if (!clean) {
+        await gitOps.stashPush(destRoot, `drev resume ${displayName}`);
+        stashed = true;
+      }
+      await gitOps.checkout(destRoot, driftSha);
+      const recovery = stashed
+        ? 'Recover with: git checkout - && git stash pop'
+        : 'Recover with: git checkout -';
+      info(`Checked out ${driftSha.slice(0, 8)}. ${recovery}.`);
+    } else {
+      info('--checkout: working tree already matches session commit_sha, no-op.');
+    }
+  }
+
   const sourceRoot = resolved.meta.project_root;
   const rewrittenParent = stripThinkingSignatures(rewritePaths(parentJsonl, sourceRoot, destRoot));
 
-  const id = resolved.meta.id;
   const targetDir = join(claudeProjectsDir(), encodedCwd(destRoot));
-  await mkdir(targetDir, { recursive: true });
   const targetParentPath = sessionPath(destRoot, id);
+
+  // Overwrite protection: refuse to clobber an existing local session unless
+  // the caller has explicitly opted in (--force) or confirms interactively.
+  if (await fileExists(targetParentPath)) {
+    const allowed = await confirmOverwrite(targetParentPath, id, opts.force);
+    if (!allowed) {
+      info('Resume cancelled (existing local session preserved).');
+      return;
+    }
+  }
+
+  await mkdir(targetDir, { recursive: true });
   await writeFile(targetParentPath, rewrittenParent, 'utf8');
 
   if (subagentEntries.length > 0) {
@@ -90,7 +143,6 @@ export async function runResume(query: string, opts: ResumeOptions): Promise<voi
     }
   }
 
-  const displayName = resolved.meta.name ?? id.slice(0, 8);
   info(`Resuming '${displayName}' in ${destRoot}...`);
 
   if (opts.launch === false) {
@@ -166,6 +218,29 @@ async function determineDestRoot(intoFlag: string | undefined): Promise<string> 
   const cwd = process.cwd();
   info(`destination not specified; using ${cwd} (override with --into <path>)`);
   return cwd;
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function confirmOverwrite(
+  targetPath: string,
+  id: string,
+  force: boolean | undefined,
+): Promise<boolean> {
+  if (force) return true;
+  if (!isInteractive()) {
+    throw new RepoError(
+      `local session already exists at ${targetPath}; pass --force to overwrite.`,
+    );
+  }
+  return await confirm(`Overwrite existing local session for ${id.slice(0, 8)}?`);
 }
 
 async function listSubagentFiles(dir: string): Promise<string[]> {

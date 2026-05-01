@@ -90,6 +90,29 @@ export async function showTopLevel(cwd: string, timeoutMs?: number): Promise<str
   }
 }
 
+export async function isClean(repoDir: string, timeoutMs?: number): Promise<boolean> {
+  // Empty porcelain output means no tracked-or-untracked changes.
+  const out = await run('git', ['status', '--porcelain'], { cwd: repoDir, timeoutMs });
+  return out === '';
+}
+
+export async function stashPush(
+  repoDir: string,
+  message: string,
+  timeoutMs?: number,
+): Promise<void> {
+  // -u includes untracked files so the working tree comes back fully on pop.
+  await run('git', ['stash', 'push', '-u', '-m', message], { cwd: repoDir, timeoutMs });
+}
+
+export async function checkout(
+  repoDir: string,
+  ref: string,
+  timeoutMs?: number,
+): Promise<void> {
+  await run('git', ['checkout', ref], { cwd: repoDir, timeoutMs });
+}
+
 export async function configGet(key: string, timeoutMs?: number): Promise<string | null> {
   try {
     const value = await run('git', ['config', '--global', '--get', key], { timeoutMs });
