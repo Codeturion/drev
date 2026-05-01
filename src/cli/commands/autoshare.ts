@@ -93,14 +93,18 @@ async function runAdd(explicit?: string): Promise<void> {
     return;
   }
   const cfg = await readUserConfig();
-  const targetNorm = normalizeForCompare(target);
+  const stored = normalize(target);
+  const targetNorm = normalizeForCompare(stored);
   if (cfg.auto_share_projects.some((p) => normalizeForCompare(p) === targetNorm)) {
-    info(`${target} is already on the auto-share whitelist.`);
+    info(`${stored} is already on the auto-share whitelist.`);
     return;
   }
-  cfg.auto_share_projects = [...cfg.auto_share_projects, target];
+  // Persist all entries in canonical separator form so the file stays
+  // consistent regardless of whether earlier adds came from bash-style
+  // (forward-slash) or native (backslash) cwds.
+  cfg.auto_share_projects = [...cfg.auto_share_projects.map(normalize), stored];
   await writeUserConfig(cfg);
-  info(`Added ${target} to auto-share whitelist.`);
+  info(`Added ${stored} to auto-share whitelist.`);
 }
 
 async function runRemove(explicit?: string): Promise<void> {
@@ -113,9 +117,9 @@ async function runRemove(explicit?: string): Promise<void> {
   const cfg = await readUserConfig();
   const targetNorm = normalizeForCompare(target);
   const before = cfg.auto_share_projects.length;
-  cfg.auto_share_projects = cfg.auto_share_projects.filter(
-    (p) => normalizeForCompare(p) !== targetNorm,
-  );
+  cfg.auto_share_projects = cfg.auto_share_projects
+    .map(normalize)
+    .filter((p) => normalizeForCompare(p) !== targetNorm);
   if (cfg.auto_share_projects.length === before) {
     info(`${target} was not on the auto-share whitelist.`);
     return;

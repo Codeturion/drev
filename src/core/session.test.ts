@@ -437,8 +437,10 @@ describe('stripThinkingSignatures', () => {
     });
     const result = stripThinkingSignatures(`${line1}\n${line2}`);
     const [r1, r2] = result.split('\n');
-    expect(JSON.parse(r1)).toEqual(JSON.parse(line1));
-    expect(JSON.parse(r2).message.content).toHaveLength(1);
-    expect(JSON.parse(r2).message.content[0].type).toBe('text');
+    expect(r1).toBeDefined();
+    expect(r2).toBeDefined();
+    expect(JSON.parse(r1!)).toEqual(JSON.parse(line1));
+    expect(JSON.parse(r2!).message.content).toHaveLength(1);
+    expect(JSON.parse(r2!).message.content[0].type).toBe('text');
   });
 });

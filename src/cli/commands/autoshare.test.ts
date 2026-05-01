@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import yaml from 'js-yaml';
 
 vi.mock('../../core/git-ops.js', () => ({
@@ -98,7 +98,7 @@ describe('autoshare add', () => {
     await program.parseAsync(['node', 'drev', 'autoshare', 'add', '/explicit/proj']);
 
     const cfg = await readCfg(home);
-    expect(cfg['auto_share_projects']).toEqual(['/explicit/proj']);
+    expect(cfg['auto_share_projects']).toEqual([normalize('/explicit/proj')]);
   });
 
   it('defaults to git toplevel when no path is given', async () => {
@@ -134,7 +134,25 @@ describe('autoshare add', () => {
     await program.parseAsync(['node', 'drev', 'autoshare', 'add', '/foo']);
 
     const cfg = await readCfg(home);
+    // Already-present entries skip the write entirely, so the existing
+    // (potentially un-normalized) form is preserved. Normalization only
+    // happens on the writing-paths (genuinely new add, or remove).
     expect(cfg['auto_share_projects']).toEqual(['/foo']);
+  });
+
+  it('persists paths in normalized separator form and rewrites prior inconsistent entries', async () => {
+    const home = await withFakeHome();
+    // Mix of separator styles; on Windows this is what we saw in real use.
+    await writeCfg(home, defaultCfgFor({ auto_share_projects: ['/some/old/path'] }));
+
+    const program = buildProgram();
+    await program.parseAsync(['node', 'drev', 'autoshare', 'add', '/another/proj']);
+
+    const cfg = await readCfg(home);
+    expect(cfg['auto_share_projects']).toEqual([
+      normalize('/some/old/path'),
+      normalize('/another/proj'),
+    ]);
   });
 });
 
@@ -147,7 +165,7 @@ describe('autoshare remove', () => {
     await program.parseAsync(['node', 'drev', 'autoshare', 'remove', '/a']);
 
     const cfg = await readCfg(home);
-    expect(cfg['auto_share_projects']).toEqual(['/b']);
+    expect(cfg['auto_share_projects']).toEqual([normalize('/b')]);
   });
 
   it('is a no-op when the path is not present', async () => {

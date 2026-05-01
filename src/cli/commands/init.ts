@@ -112,14 +112,17 @@ async function maybeWhitelistCurrentProject(): Promise<void> {
   const project = await determineProjectToWhitelist();
   if (project === null) return;
   const cfg = await readUserConfig();
-  const normalizedNew = normalizeForCompare(project);
+  const stored = normalize(project);
+  const normalizedNew = normalizeForCompare(stored);
   const already = cfg.auto_share_projects.some(
     (p) => normalizeForCompare(p) === normalizedNew,
   );
   if (already) return;
-  cfg.auto_share_projects = [...cfg.auto_share_projects, project];
+  // Persist with normalized separators so adds from forward-slash and
+  // backslash cwds produce a consistent whitelist file.
+  cfg.auto_share_projects = [...cfg.auto_share_projects.map(normalize), stored];
   await writeUserConfig(cfg);
-  info(`Added ${project} to auto-share whitelist.`);
+  info(`Added ${stored} to auto-share whitelist.`);
 }
 
 async function determineProjectToWhitelist(): Promise<string | null> {
