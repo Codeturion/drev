@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rewritePaths } from './path-rewriter.js';
+import { rewritePaths, detectSeparatorStyle } from './path-rewriter.js';
 
 // Reference implementation mirroring experiment/rewrite.mjs. Used by the
 // reproducibility test. Plain split/join, no boundary check, JSON-escaped first.
@@ -315,5 +315,140 @@ describe('rewritePaths — property test (100 random pairs)', () => {
       runs += 1;
     }
     expect(runs).toBeGreaterThanOrEqual(95); // tolerate occasional src===dst skips
+  });
+});
+
+describe('detectSeparatorStyle', () => {
+  it('detects drive-letter Windows paths with backslashes', () => {
+    expect(detectSeparatorStyle('F:\\Nuts\\drev')).toBe('win32');
+    expect(detectSeparatorStyle('C:\\Users\\bob')).toBe('win32');
+  });
+
+  it('detects drive-letter Windows paths with forward slashes', () => {
+    expect(detectSeparatorStyle('C:/Users/bob')).toBe('win32');
+  });
+
+  it('detects UNC paths as Windows', () => {
+    expect(detectSeparatorStyle('\\\\server\\share\\proj')).toBe('win32');
+  });
+
+  it('detects POSIX absolute paths', () => {
+    expect(detectSeparatorStyle('/Users/fuat/work')).toBe('posix');
+    expect(detectSeparatorStyle('/home/alice/proj')).toBe('posix');
+  });
+
+  it('falls back to dominant separator for ambiguous input', () => {
+    expect(detectSeparatorStyle('relative\\path\\here')).toBe('win32');
+    expect(detectSeparatorStyle('relative/path/here')).toBe('posix');
+  });
+});
+
+describe('rewritePaths — cross-OS separator translation', () => {
+  it('case 2 (Windows → POSIX): escaped form, mid-path separators translated', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    // JSONL bytes: backslashes appear doubled inside JSON string literals.
+    const input = `{"file_path":"F:\\\\Nuts\\\\drev\\\\src\\\\foo.ts"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`{"file_path":"/Users/fuat/test/src/foo.ts"}`);
+  });
+
+  it('case 3 (POSIX → Windows): escaped form, mid-path separators escaped', () => {
+    const src = '/home/alice/proj';
+    const dst = 'C:\\Test';
+    const input = `{"file_path":"/home/alice/proj/src/foo.ts"}`;
+    const out = rewritePaths(input, src, dst);
+    // In JSONL bytes: backslashes are doubled.
+    expect(out).toBe(`{"file_path":"C:\\\\Test\\\\src\\\\foo.ts"}`);
+  });
+
+  it('case 4: path appears multiple times in one line — all translated', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    const input =
+      `{"a":"F:\\\\Nuts\\\\drev\\\\src\\\\a.ts",` +
+      `"b":"F:\\\\Nuts\\\\drev\\\\src\\\\b.ts",` +
+      `"c":"F:\\\\Nuts\\\\drev\\\\README.md"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toContain('/Users/fuat/test/src/a.ts');
+    expect(out).toContain('/Users/fuat/test/src/b.ts');
+    expect(out).toContain('/Users/fuat/test/README.md');
+    expect(out).not.toMatch(/F:\\\\/);
+    expect(out).not.toMatch(/Nuts/);
+  });
+
+  it('case 5: path embedded in stderr inside tool result still translates', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    const input = `{"tool_result":{"stderr":"Error at F:\\\\Nuts\\\\drev\\\\src\\\\main.ts:42:1"}}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toContain('/Users/fuat/test/src/main.ts:42:1');
+    expect(out).not.toContain('Nuts');
+  });
+
+  it('case 6: path ending immediately at boundary — no trailing chars to translate', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    const input = `{"cwd":"F:\\\\Nuts\\\\drev"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`{"cwd":"/Users/fuat/test"}`);
+  });
+
+  it('case 7: paths from a non-matching root are left alone', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    // Mixed: one path matches src, another points to ~/.claude — only the
+    // first gets translated. The second keeps Windows separators.
+    const input =
+      `{"a":"F:\\\\Nuts\\\\drev\\\\src\\\\foo.ts",` +
+      `"b":"C:\\\\Users\\\\Frostborn\\\\.claude\\\\settings.json"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toContain('/Users/fuat/test/src/foo.ts');
+    // Untouched path keeps its escaped backslashes.
+    expect(out).toContain('C:\\\\Users\\\\Frostborn\\\\.claude\\\\settings.json');
+  });
+
+  it('case 8 (raw form): Windows raw path in stderr translates to POSIX', () => {
+    const src = 'F:\\Nuts\\drev';
+    const dst = '/Users/fuat/test';
+    // Raw single-backslash form (not JSON-escaped) — rare but possible in
+    // hand-crafted lines or already-decoded contexts.
+    const input = `error at F:\\Nuts\\drev\\src\\main.ts boom`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`error at /Users/fuat/test/src/main.ts boom`);
+  });
+
+  it('case 9: empty path tail — clean no-op after prefix swap', () => {
+    const src = '/home/alice/proj';
+    const dst = 'C:\\Test';
+    const input = `{"cwd":"/home/alice/proj"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`{"cwd":"C:\\\\Test"}`);
+  });
+
+  it('case 10 (UNC): UNC source detected as Windows, translates to POSIX', () => {
+    const src = '\\\\server\\share\\proj';
+    const dst = '/mnt/share';
+    const input = `{"file":"\\\\\\\\server\\\\share\\\\proj\\\\src\\\\x.ts"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`{"file":"/mnt/share/src/x.ts"}`);
+  });
+
+  it('same-OS Windows → Windows still skips translation (no regression)', () => {
+    const src = 'F:\\Unity Projects\\dcs';
+    const dst = 'F:\\drev-test';
+    const input = `{"cwd":"F:\\\\Unity Projects\\\\dcs","file":"F:\\\\Unity Projects\\\\dcs\\\\src\\\\main.cs"}`;
+    const out = rewritePaths(input, src, dst);
+    // Identical to the existing case-3 expectation: backslashes preserved.
+    expect(out).toContain('F:\\\\drev-test\\\\src\\\\main.cs');
+    expect(out).not.toContain('F:/drev-test');
+  });
+
+  it('same-OS POSIX → POSIX uses no translation (no regression)', () => {
+    const src = '/home/a/proj';
+    const dst = '/home/b/proj';
+    const input = `{"file":"/home/a/proj/src/x.ts"}`;
+    const out = rewritePaths(input, src, dst);
+    expect(out).toBe(`{"file":"/home/b/proj/src/x.ts"}`);
   });
 });

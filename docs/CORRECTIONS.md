@@ -21,6 +21,8 @@ The `cwd` field, every `file_path` in tool calls, and embedded paths in tool res
 
 **Reference:** `experiment/rewrite.mjs` is the working implementation that proved this. The `claude --resume` test passed end-to-end with native separators preserved.
 
+**Update (v0.1.x):** Cross-OS separator translation is now implemented in `core/path-rewriter.ts`. When source and destination separator styles differ, the rewriter translates mid-path separators after replacing the prefix. Same-OS rewrites are unaffected.
+
 ## 2. Subagent JSONLs are unhandled by ARCHITECTURE.md
 
 Many session directories contain sibling files at `~/.claude/projects/<encoded-cwd>/<session-id>/subagents/agent-*.jsonl`. These are real work product (delegated tasks, parallel agents). The architecture document treats `<session-id>.jsonl` as the only artifact, but that loses subagent transcripts on resume — which contradicts the §1.2 "full transcript fidelity" promise.
