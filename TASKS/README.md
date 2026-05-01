@@ -52,6 +52,15 @@ Operational view of v0 work. Each row links to a task file with full scope, acce
 | [T27](T27-manual-cross-machine.md) | Manual cross-machine resume | ▶ | T26 | §13.3, §16 DoD |
 | [T28](T28-publish.md) | `npm publish` to npm | ▶ | T25, T26 | §16 DoD |
 
+## Post-v0.1 backlog (known issues)
+
+Logged for fix in v0.1.x — discovered during real-world testing of v0.1.0.
+
+| ID | Task | Status | Severity | Notes |
+|----|------|--------|----------|-------|
+| [T29](T29-fix-sessionend-reliability.md) | SessionEnd hook doesn't reliably fire | ☐ | high | Auto-share trigger is the headline UX; if hooks miss, sweep never runs |
+| [T30](T30-noninteractive-from-skill.md) | Commands must be non-interactive when called via skill | ☐ | high | `drev share` first-share prompt + init wizard hang when stdin isn't a TTY |
+
 ## Workflow
 
 1. Pick the first ☐ task whose dependencies are all ✓.

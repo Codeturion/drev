@@ -19,7 +19,14 @@ This document is the operational layer on top of the spec. Each task lives in `T
 - ✓ Phase C — commands (T12-T24; 155 tests + init wizard refresh)
 - ▶ Phase D — ship gates (T25 ✓, T26 ✓, T27 awaits real cross-machine run, T28 awaits `npm publish`)
 
-**Cumulative test count:** 499 across 27 files. **Tag:** `v0.1.0` pushed.
+**Cumulative test count:** 549 across 28 files. **Tag:** `v0.1.0` pushed.
+
+## Known issues found during v0.1.0 testing
+
+Logged as backlog tasks; address before tagging v0.1.1:
+
+- **[T29](../TASKS/T29-fix-sessionend-reliability.md)** — `SessionEnd` hook doesn't reliably fire. Auto-share's headline UX depends on it; if it misses, sweep never runs. Need instrumentation + likely use absolute path in hook command + verify SessionStart fallback.
+- **[T30](../TASKS/T30-noninteractive-from-skill.md)** — `drev share` and the `drev init` wizard hang when stdin isn't a TTY (which is how Claude's Bash tool runs them, per the bundled skill flow). Need TTY detection in `ui.confirm` / `ui.prompt` and a clear non-interactive code path.
 
 ## Picking up where we left off
 
