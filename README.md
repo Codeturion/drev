@@ -4,6 +4,14 @@
 
 # Drev
 
+[![npm Version](https://img.shields.io/npm/v/@codeturion/drev.svg)](https://www.npmjs.com/package/@codeturion/drev)
+[![npm Downloads](https://img.shields.io/npm/dm/@codeturion/drev.svg)](https://www.npmjs.com/package/@codeturion/drev)
+[![Build Status](https://github.com/Codeturion/drev/actions/workflows/publish.yml/badge.svg)](https://github.com/Codeturion/drev/actions/workflows/publish.yml)
+[![GitHub Stars](https://img.shields.io/github/stars/Codeturion/drev)](https://github.com/Codeturion/drev)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/Codeturion/drev)](https://github.com/Codeturion/drev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node 20+](https://img.shields.io/badge/node-20+-blue.svg)](https://nodejs.org)
+
 **Drev makes Claude Code sessions portable: share one with a friend or teammate, or resume it yourself on any machine, Mac or PC.**
 
 You finish a long debugging session and hand the work to a teammate. Your colleague leaves on vacation mid-feature and someone has to pick it up. You started something on your work PC and want to keep going from your laptop at home. In all three cases, today the actual Claude Code conversation, every step, every dead end, every "ah, that's why", dies the moment the terminal closes. The next person starts from scratch, even if that next person is *you*.
