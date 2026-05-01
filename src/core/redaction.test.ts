@@ -385,4 +385,67 @@ describe('findSuspiciousTokens', () => {
     const r = findSuspiciousTokens(`API_KEY=${key}`);
     expect(r.count).toBeGreaterThanOrEqual(1);
   });
+
+  // Real-world tuning (post v0 share): MCP tool identifiers and Claude Code
+  // thinking signatures dominated the warning on a 293-turn share with 284
+  // false positives. Both have stable shapes and are never secrets.
+  it('does not flag Claude Code MCP tool identifiers', () => {
+    const tools = [
+      'mcp__aseprite__animation_workflow_guide',
+      'mcp__context7__resolve-library-id',
+      'mcp__claude_ai_Gmail__create_draft',
+      'mcp__aseprite__draw_rectangle_at',
+    ].join(' ');
+    const r = findSuspiciousTokens(tools);
+    // Some tokens may contain `-` which is in the allowed-char class; either
+    // way none of them should fire.
+    expect(r.count).toBe(0);
+  });
+
+  it('does not flag thinking-block signature fields', () => {
+    // Real-shaped: the value inside `"signature":"..."` is a long base64
+    // string. The pre-strip pass blanks it before scanning.
+    const line = '{"type":"thinking","thinking":"","signature":"ErYCClkIDRgCKkBF4hNIqqyj5+M0BnENvLWzxJ9iRRTf+eJseA24xhpGa+N9NCWEcK33gJY1wyvrPPRaFTqVtXmVsXWCqeBtOZTSMg9jbGF1ZGUtb3B1cy00LTc4ABIM"}';
+    const r = findSuspiciousTokens(line);
+    expect(r.count).toBe(0);
+  });
+
+  it('still flags a high-entropy token outside both Claude Code shapes', () => {
+    // Same long base64 as a thinking signature, but in a generic context
+    // (no `"signature":` key). Must still fire.
+    const blob = 'ErYCClkIDRgCKkBF4hNIqqyj5+M0BnENvLWzxJ9iRRTf+eJseA24xhpGa+N9NCWE';
+    const r = findSuspiciousTokens(`leaked=${blob}`);
+    expect(r.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not flag path or URL fragments (3+ slashes)', () => {
+    const fragments = [
+      'com/Codeturion/drev/actions/workflows/publish',
+      'io/github/last-commit/Codeturion/drev',
+      'users/fuat/2026-05-01-inventory-sync-fix/',
+      'https://example.com/api/v1/things/abc/def',
+    ].join(' ');
+    const r = findSuspiciousTokens(fragments);
+    expect(r.count).toBe(0);
+  });
+
+  it('still flags a high-entropy token that happens to contain one or two slashes', () => {
+    // base64-ish secret with a couple of `/` chars (legitimate base64 alphabet).
+    const key = 'Aa1Bb2Cc3Dd4/Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm2N/xyz';
+    const r = findSuspiciousTokens(`"${key}"`);
+    expect(r.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles a mixed payload (MCP tools + signatures + a real leak)', () => {
+    const realLeak = 'vendor_live_Hk9XmP2qLfV4nWcR8jZ5tBdY7sNgEa6oFi';
+    const payload = [
+      'mcp__aseprite__draw_line mcp__claude_ai_Gmail__list_drafts',
+      '{"signature":"ErYCClkIDRgCKkBF4hNIqqyj5+M0BnENvLWzxJ9iRRTf"}',
+      // Space (not `=`) so the matched token is just realLeak.
+      `API_KEY ${realLeak}`,
+    ].join('\n');
+    const r = findSuspiciousTokens(payload);
+    expect(r.count).toBe(1);
+    expect(r.samples).toContain(realLeak);
+  });
 });

@@ -69,8 +69,30 @@ export function compileUserPattern(type: string, source: string): RedactionPatte
 const SUSPICIOUS_TOKEN_RE = /[A-Za-z0-9+/=_-]{32,}/g;
 const PURE_HEX_RE = /^[0-9a-f]+$/;
 const REDACTION_MARKER_RE = /^<REDACTED:[^>]+>$/;
+// Claude Code MCP tool identifiers like `mcp__aseprite__draw_line` or
+// `mcp__claude_ai_Gmail__create_draft`: long, base64-shaped, never secrets.
+// Sessions with MCP tools enabled list dozens of these in deferred-tools
+// metadata events, so they otherwise dominate the entropy warning output.
+const MCP_TOOL_NAME_RE = /^mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_-]+$/;
+// Claude Code thinking-block cryptographic signatures live at
+// `"signature":"<long-base64>"` inside thinking events. Legitimately
+// high-entropy, never user-controlled content.
+const SIGNATURE_FIELD_RE = /"signature"\s*:\s*"[^"]+"/g;
+// Tokens with three or more forward slashes are path / URL fragments
+// (`com/Codeturion/drev/actions/workflows/publish`,
+// `users/fuat/2026-05-01-x/`, etc.). API keys / secrets in modern formats
+// use base64url (`-`, `_`) rather than `/`, so a real leak with 3+ slashes
+// is a vanishingly rare false negative versus dozens of false positives
+// per shared session.
+const MAX_PATH_SLASHES = 2;
 const SUSPICIOUS_ENTROPY_THRESHOLD = 4.0;
 const MAX_SAMPLES = 3;
+
+function countSlashes(s: string): number {
+  let n = 0;
+  for (const ch of s) if (ch === '/') n += 1;
+  return n;
+}
 
 function shannonEntropy(s: string): number {
   if (s.length === 0) return 0;
@@ -90,15 +112,26 @@ export interface SuspiciousReport {
 }
 
 export function findSuspiciousTokens(text: string): SuspiciousReport {
+  // Pre-strip Claude Code thinking-block signatures: stable JSON shape, always
+  // high-entropy, never a secret. Replacing with empty content (rather than
+  // deleting) preserves byte offsets and downstream parsing in case callers
+  // ever inspect them.
+  const cleaned = text.replace(SIGNATURE_FIELD_RE, '"signature":""');
+
   const samples: string[] = [];
   const seen = new Set<string>();
   let count = 0;
-  for (const match of text.matchAll(SUSPICIOUS_TOKEN_RE)) {
+  for (const match of cleaned.matchAll(SUSPICIOUS_TOKEN_RE)) {
     const token = match[0];
     // Skip our own redaction markers so a previous pass doesn't flag itself.
     if (REDACTION_MARKER_RE.test(token)) continue;
     // Pure hex (git SHAs, file hashes) is common and low signal; skip.
     if (PURE_HEX_RE.test(token)) continue;
+    // Claude Code MCP tool identifiers are not secrets even though they look
+    // base64-shaped; skip them or every MCP-enabled session floods the warning.
+    if (MCP_TOOL_NAME_RE.test(token)) continue;
+    // Path / URL fragments have multiple slashes; modern API keys do not.
+    if (countSlashes(token) > MAX_PATH_SLASHES) continue;
     if (shannonEntropy(token) < SUSPICIOUS_ENTROPY_THRESHOLD) continue;
     count += 1;
     if (samples.length < MAX_SAMPLES && !seen.has(token)) {
