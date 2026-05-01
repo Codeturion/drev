@@ -55,6 +55,10 @@ Inside Claude Code, the bundled skill routes "save this session as foo" to `drev
 
 `drev rename`, `drev mark`, `drev search`, `drev sync`, `drev scrub`. All have `--help`.
 
+## Developing on drev itself
+
+After `git pull`, run `npm install` so the `prepare` script rebuilds `dist/`. Without that, `npm link`'d `drev` stays on stale compiled code.
+
 ## License
 
 MIT.
