@@ -12,6 +12,7 @@ import {
   subagentDir,
 } from '../../core/claude-paths.js';
 import { rewritePaths } from '../../core/path-rewriter.js';
+import { stripThinkingSignatures } from '../../core/session.js';
 import { readUserConfig } from '../../core/config.js';
 import { ConfigError } from '../../lib/errors.js';
 import { info, warn } from '../ui.js';
@@ -70,7 +71,7 @@ export async function runResume(query: string, opts: ResumeOptions): Promise<voi
   }
 
   const sourceRoot = resolved.meta.project_root;
-  const rewrittenParent = rewritePaths(parentJsonl, sourceRoot, destRoot);
+  const rewrittenParent = stripThinkingSignatures(rewritePaths(parentJsonl, sourceRoot, destRoot));
 
   const id = resolved.meta.id;
   const targetDir = join(claudeProjectsDir(), encodedCwd(destRoot));
@@ -83,7 +84,7 @@ export async function runResume(query: string, opts: ResumeOptions): Promise<voi
     await mkdir(targetSubagentDir, { recursive: true });
     for (const sub of subagentEntries) {
       const raw = await readFile(sub, 'utf8');
-      const rewritten = rewritePaths(raw, sourceRoot, destRoot);
+      const rewritten = stripThinkingSignatures(rewritePaths(raw, sourceRoot, destRoot));
       const out = join(targetSubagentDir, basename(sub));
       await writeFile(out, rewritten, 'utf8');
     }

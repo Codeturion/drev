@@ -22,6 +22,52 @@ export interface SessionStats {
   sizeBytes: number;
 }
 
+/**
+ * Strips the `signature` field from thinking blocks in a JSONL string.
+ * Thinking block signatures are tied to the API key that created them;
+ * resuming across accounts causes a 400 unless they are removed.
+ */
+export function stripThinkingSignatures(jsonl: string): string {
+  return jsonl
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) return line;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        return line;
+      }
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return line;
+      const changed = scrubThinkingSignatures(parsed as Record<string, unknown>);
+      return changed ? JSON.stringify(parsed) : line;
+    })
+    .join('\n');
+}
+
+function scrubThinkingSignatures(obj: Record<string, unknown>): boolean {
+  let changed = false;
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+          const block = item as Record<string, unknown>;
+          if (block['type'] === 'thinking' && 'signature' in block) {
+            delete block['signature'];
+            changed = true;
+          }
+          if (scrubThinkingSignatures(block)) changed = true;
+        }
+      }
+    } else if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
+      if (scrubThinkingSignatures(val as Record<string, unknown>)) changed = true;
+    }
+  }
+  return changed;
+}
+
 export async function findSessionFiles(
   absolutePath: string,
   sessionId: string,

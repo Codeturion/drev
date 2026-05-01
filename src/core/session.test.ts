@@ -8,6 +8,7 @@ import {
   findMostRecentSession,
   findSessionFiles,
   readSessionStats,
+  stripThinkingSignatures,
 } from './session.js';
 
 const tmpDirs: string[] = [];
@@ -376,5 +377,68 @@ describe('readSessionStats', () => {
       expect(stats.turns).toBe(1);
       expect(stats.cwd).toBe(cwd);
     });
+  });
+});
+
+describe('stripThinkingSignatures', () => {
+  it('removes signature from thinking blocks in assistant messages', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'thinking', thinking: 'some thoughts', signature: 'sig_abc123' },
+          { type: 'text', text: 'hello' },
+        ],
+      },
+    });
+    const result = stripThinkingSignatures(line);
+    const parsed = JSON.parse(result);
+    const block = parsed.message.content[0];
+    expect(block.thinking).toBe('some thoughts');
+    expect('signature' in block).toBe(false);
+  });
+
+  it('leaves non-thinking blocks untouched', () => {
+    const input = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'hi' }] } });
+    expect(stripThinkingSignatures(input)).toBe(input);
+  });
+
+  it('handles multiple thinking blocks in one message', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'thinking', thinking: 'a', signature: 'sig_1' },
+          { type: 'thinking', thinking: 'b', signature: 'sig_2' },
+        ],
+      },
+    });
+    const result = stripThinkingSignatures(line);
+    const parsed = JSON.parse(result);
+    for (const block of parsed.message.content) {
+      expect('signature' in block).toBe(false);
+    }
+  });
+
+  it('passes through empty lines unchanged', () => {
+    expect(stripThinkingSignatures('')).toBe('');
+    expect(stripThinkingSignatures('\n\n')).toBe('\n\n');
+  });
+
+  it('passes through unparseable lines unchanged', () => {
+    const garbage = 'not json at all';
+    expect(stripThinkingSignatures(garbage)).toBe(garbage);
+  });
+
+  it('processes multi-line JSONL correctly', () => {
+    const line1 = JSON.stringify({ type: 'user', message: { content: [{ type: 'text', text: 'hi' }] } });
+    const line2 = JSON.stringify({
+      type: 'assistant',
+      message: { content: [{ type: 'thinking', thinking: 'x', signature: 'sig_x' }] },
+    });
+    const result = stripThinkingSignatures(`${line1}\n${line2}`);
+    const [r1, r2] = result.split('\n');
+    expect(JSON.parse(r1)).toEqual(JSON.parse(line1));
+    expect('signature' in JSON.parse(r2).message.content[0]).toBe(false);
   });
 });
