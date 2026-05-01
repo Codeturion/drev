@@ -609,6 +609,40 @@ describe('runResume — --checkout', () => {
     expect(gitOps.checkout).not.toHaveBeenCalled();
   });
 
+  // Gemini review: if checkout fails after auto-stash, surface a recovery
+  // hint so the user knows their dirty changes are in the stash, not lost.
+  it('warns about stash recovery if checkout fails after auto-stashing', async () => {
+    withDrift();
+    vi.mocked(gitOps.isClean).mockResolvedValue(false);
+    vi.mocked(gitOps.checkout).mockRejectedValue(
+      new Error('fatal: invalid reference: deadbeef...'),
+    );
+
+    await expect(
+      runResume('auth', { into: '/dest', launch: false, checkout: true }),
+    ).rejects.toThrow('invalid reference');
+
+    expect(gitOps.stashPush).toHaveBeenCalledTimes(1);
+    const warnCalls = vi.mocked(ui.warn).mock.calls.map((c) => c[0]);
+    expect(warnCalls.some((m) => m.includes('git stash pop'))).toBe(true);
+    expect(warnCalls.some((m) => m.toLowerCase().includes('stash'))).toBe(true);
+  });
+
+  it('does NOT warn about stash recovery if checkout fails on a clean tree', async () => {
+    withDrift();
+    vi.mocked(gitOps.isClean).mockResolvedValue(true);
+    vi.mocked(gitOps.checkout).mockRejectedValue(new Error('git checkout failed'));
+
+    await expect(
+      runResume('auth', { into: '/dest', launch: false, checkout: true }),
+    ).rejects.toThrow('git checkout failed');
+
+    expect(gitOps.stashPush).not.toHaveBeenCalled();
+    const warnCalls = vi.mocked(ui.warn).mock.calls.map((c) => c[0]);
+    // No stash, no stash recovery hint.
+    expect(warnCalls.some((m) => m.includes('git stash pop'))).toBe(false);
+  });
+
   it('errors when --checkout is set but destination is not a git repo', async () => {
     vi.mocked(nameResolver.resolve).mockResolvedValue({
       metaPath: '/repo/users/alice/2026-04-30-auth/meta.yaml',
