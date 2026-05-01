@@ -18,11 +18,24 @@ drev init <owner>/<name>            # github shorthand: clone if exists, else cr
 drev init --local [--at <path>]    # local bare repo, no GitHub
 drev init <anything> --reinit       # repoint an existing setup
 ```
-Wizard: paste a teammate's URL (joiner) or hit Enter to create your own. Confirm `<your-gh-user>/drev-sessions` private with Y, or `n` to pick a different `<owner>/<name>`.
 
-By default `drev init` installs Claude Code hooks + a `drev` skill and whitelists the current project for auto-share. Only whitelisted projects auto-share — scope is per-project, not global. `--no-auto-share` skips it entirely.
+### Wizard
 
-**GitLab, Bitbucket, self-hosted, etc.:** drev's auto-create only knows GitHub (via `gh`). Pre-create your repo on the host's UI/CLI, then `drev init <git-url>`. Everything after init (`share`, `resume`, `list`, `sync`, `autoshare-sweep`, …) is pure `git` — works against any remote.
+Two questions:
+1. *Got a Drev repo URL from your team?* — paste (joining) or hit Enter (creating).
+2. If creating: *Create private repo at `<your-gh-user>/drev-sessions`?* — `Y` accepts, `n` picks a different `<owner>/<name>`.
+
+### What `drev init` installs by default
+
+- Claude Code hooks (`SessionStart`, `SessionEnd`) — trigger auto-share when sessions end
+- A `drev` skill at `~/.claude/skills/drev/SKILL.md` — lets you say *"save this session as foo"* inside Claude Code
+- The current project on the auto-share whitelist — scope is per-project, not global
+
+Skip the install with `drev init --no-auto-share`. Add other projects later with `drev autoshare add`.
+
+### Non-GitHub hosts (GitLab, Bitbucket, self-hosted)
+
+Auto-create only knows GitHub (via `gh`). For other hosts: pre-create the repo on your host's UI/CLI, then `drev init <full-git-url>`. Every other command (`share`, `resume`, `list`, `sync`, `autoshare-sweep`, …) is pure `git` and works against any remote.
 
 ## Share
 
