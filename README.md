@@ -109,6 +109,10 @@ drev backup --name nightly                 # private backup of current session
 
 All have `--help` for full options.
 
+## How this was built
+
+Drev v0 was built in a single working session by one engineer using Claude Code as orchestrator with parallel sub-agents as the workforce. 30 narrowly-scoped tasks across 4 phases, with up to 10 agents in parallel at peak. 572 passing tests, 96% line coverage on `core/`, bidirectional cross-OS validation. Build narrative, dispatch pattern, and the four architectural corrections caught by real-world testing: [docs/HOW_THIS_WAS_BUILT.md](./docs/HOW_THIS_WAS_BUILT.md).
+
 ## License
 
 MIT.
