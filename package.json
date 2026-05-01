@@ -1,7 +1,7 @@
 {
   "name": "@codeturion/drev",
   "version": "0.1.2",
-  "description": "Drev: share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume`. Bin: `drev`.",
+  "description": "Make Claude Code sessions portable: share them with friends and teammates, or resume them on any machine. Bin: `drev`.",
   "type": "module",
   "license": "MIT",
   "author": "Fuat Can Köseoğlu",
