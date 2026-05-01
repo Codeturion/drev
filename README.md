@@ -31,9 +31,7 @@ The bundled Claude Code skill makes the flow feel native: just say *"save this s
 
 ## <img src="./assets/icons/demo.png" alt="" width="40" align="absmiddle"> Demo
 
-<p align="center">
-  <img src="./demo.gif" alt="Drev demo: producer shares a session, consumer resumes on a different machine" width="800" />
-</p>
+> 🚧 **Demo recording in progress.** A gif of the cross-machine handoff flow is being prepared. Until then, the scene below describes what you'll see.
 
 *Engineer A finishes a debugging session in Claude Code and says "save this as auth-fix". Engineer B, on a different machine and a different OS, runs `drev resume auth-fix`. Claude Code opens with the full transcript loaded, every path rewritten to B's machine.*
 

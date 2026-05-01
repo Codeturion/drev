@@ -17,7 +17,7 @@ Output demo.gif
 Set FontSize 16
 Set Width 1200
 Set Height 720
-Set Theme "Tokyo Night"
+Set Theme "TokyoNight"
 Set TypingSpeed 55ms
 Set PlaybackSpeed 1.0
 Set Padding 24
@@ -51,16 +51,16 @@ Enter
 Sleep 3.5s
 
 # 2. The magic command. drev pulls latest, rewrites every path from the
-#    sender's machine to this one (Mac->Windows or vice versa), places the
-#    JSONL into ~/.claude/projects/<encoded>/<id>.jsonl, then spawns
-#    `claude --resume <id>` so Claude Code opens with the full transcript.
-Type "drev resume xos-fix"
+#    sender's machine to this one (Mac->Windows or vice versa), and places
+#    the JSONL into ~/.claude/projects/<encoded>/<id>.jsonl. Without
+#    --no-launch, drev would spawn `claude --resume <id>` here. We use
+#    --no-launch so the tape can end cleanly (vhs can't terminate an
+#    interactive Claude TUI). The printed `claude --resume` command at
+#    the end shows what runs in the real flow.
+Type "drev resume xos-fix --no-launch"
 Sleep 400ms
 Enter
 
-# Let drev print its progress lines and spawn Claude Code.
-Sleep 7s
-
-# Claude Code TUI is now visible with the resumed session loaded — every
-# tool call, every read, every "ah, that's why" — intact on a fresh machine.
-Sleep 4s
+# Let drev print its progress lines (pull, rewrite, place) and the
+# final "claude --resume <id>" instruction.
+Sleep 6s
