@@ -21,9 +21,17 @@ drev init <anything> --reinit       # repoint an existing setup
 
 ### Wizard
 
+```
+$ drev init
+Got a Drev repo URL from your team? (paste, or leave empty to create new):
+Create private repo at fuat/drev-sessions? [Y/n] Y
+✓ Drev initialized at /home/fuat/.drev/repos/drev-sessions
+✓ Auto-share enabled. Hooks + skill installed.
+```
+
 Two questions:
-1. *Got a Drev repo URL from your team?* — paste (joining) or hit Enter (creating).
-2. If creating: *Create private repo at `<your-gh-user>/drev-sessions`?* — `Y` accepts, `n` picks a different `<owner>/<name>`.
+1. *Got a Drev repo URL?* — paste (joining a teammate's repo) or hit Enter (creating your own).
+2. If creating: *Create private repo at `<your-gh-user>/drev-sessions`?* — `Y` accepts, `n` lets you pick a different `<owner>/<name>`.
 
 ### What `drev init` installs by default
 
@@ -31,11 +39,33 @@ Two questions:
 - A `drev` skill at `~/.claude/skills/drev/SKILL.md` — lets you say *"save this session as foo"* inside Claude Code
 - The current project on the auto-share whitelist — scope is per-project, not global
 
-Skip the install with `drev init --no-auto-share`. Add other projects later with `drev autoshare add`.
+```
+drev init --no-auto-share                  # skip the install entirely
+drev autoshare add /path/to/another/proj   # whitelist another project later
+drev autoshare list                        # see what's whitelisted
+drev hooks uninstall                       # remove hooks + skill any time
+```
 
 ### Non-GitHub hosts (GitLab, Bitbucket, self-hosted)
 
-Auto-create only knows GitHub (via `gh`). For other hosts: pre-create the repo on your host's UI/CLI, then `drev init <full-git-url>`. Every other command (`share`, `resume`, `list`, `sync`, `autoshare-sweep`, …) is pure `git` and works against any remote.
+Auto-create only knows GitHub. For other hosts, pre-create the repo on your host then init with the URL:
+
+```
+# GitLab
+glab repo create team/drev-sessions --private
+drev init https://gitlab.com/team/drev-sessions.git
+
+# Bitbucket
+drev init https://bitbucket.org/team/drev-sessions.git
+
+# Self-hosted (Gitea / Forgejo / GitLab CE / etc.)
+drev init https://git.company.internal/team/drev-sessions.git
+
+# SSH form works too
+drev init git@gitlab.com:team/drev-sessions.git
+```
+
+Everything after init (`share`, `resume`, `list`, `sync`, `autoshare-sweep`, …) is pure `git` and works against any remote.
 
 ## Share
 
@@ -68,7 +98,16 @@ Inside Claude Code, the bundled skill routes "save this session as foo" to `drev
 
 ## Other commands
 
-`drev rename`, `drev mark`, `drev search`, `drev sync`, `drev scrub`. All have `--help`.
+```
+drev rename old-name new-name              # rename your share, preserves date prefix
+drev mark <name-or-id> --private           # change visibility (--team / --private / --delete)
+drev search "auth bug"                     # substring across name / title / summary / files
+drev sync                                  # pull + drain offline outbox
+drev scrub <name-or-id> --confirm          # rewrite history to remove a leak (force-pushes)
+drev backup --name nightly                 # private backup of current session
+```
+
+All have `--help` for full options.
 
 ## License
 
