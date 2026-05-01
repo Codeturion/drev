@@ -6,7 +6,7 @@
 
 [![npm Version](https://img.shields.io/npm/v/@codeturion/drev.svg)](https://www.npmjs.com/package/@codeturion/drev)
 [![npm Downloads](https://img.shields.io/npm/dm/@codeturion/drev.svg)](https://www.npmjs.com/package/@codeturion/drev)
-[![Build Status](https://github.com/Codeturion/drev/actions/workflows/publish.yml/badge.svg)](https://github.com/Codeturion/drev/actions/workflows/publish.yml)
+[![Build Status](https://github.com/Codeturion/drev/actions/workflows/publish.yml/badge.svg?event=push)](https://github.com/Codeturion/drev/actions/workflows/publish.yml)
 [![GitHub Stars](https://img.shields.io/github/stars/Codeturion/drev)](https://github.com/Codeturion/drev)
 [![GitHub Last Commit](https://img.shields.io/github/last-commit/Codeturion/drev)](https://github.com/Codeturion/drev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
