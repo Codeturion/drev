@@ -47,6 +47,22 @@ Many session directories contain sibling files at `~/.claude/projects/<encoded-c
 
 **Trust note:** the original "explicit consent" concern is mitigated by (a) `drev init` is itself an explicit consent moment, (b) `--no-auto-share` is a one-flag escape, and (c) the install is reversible.
 
+## 4. Thinking blocks must be dropped on resume
+
+**Discovered during the T27 cross-machine test (2026-05-01).** Sharing a session captured on one Anthropic API account to a recipient on a different account caused `claude --resume` to fail with HTTP 400 `invalid_request_error` from the API. ARCHITECTURE.md is silent on this — it assumed a JSONL is portable as-is, which is false for any session whose recipient uses a different account than the producer.
+
+**Why this happens.** Claude Code records assistant messages including their `thinking` content blocks. Each thinking block carries a cryptographic `signature` field that the Anthropic API validates against the API key that produced it. When the JSONL is replayed under a different API key, signature validation fails on the very first turn that contains a thinking block — the resume can't proceed.
+
+**First fix attempt (commit `7a3775d`):** strip just the `signature` field from thinking blocks before write. **This made it worse.** The API requires `signature` to be *present* whenever a thinking block exists, so removing only the field returned a `Field required` validation error.
+
+**Final fix (commit `e1674a7`):** drop the entire thinking block from `content` arrays during the resume rewrite. The remaining text blocks preserve all conceptual context — Claude on the receiver side has the full transcript of what was discussed, decided, and produced — but the internal "reasoning trail" is lost. Reasoning trails don't carry forward across resumes anyway; they're per-turn artifacts.
+
+**Implementation.** `stripThinkingSignatures` in `src/core/session.ts` (name kept for git history continuity even though the implementation now strips entire blocks, not just signatures — a rename to `dropThinkingBlocks` is a candidate cleanup for v0.2). Called from `cli/commands/resume.ts` on both the parent JSONL and each subagent JSONL after `rewritePaths`.
+
+**Rule:** every JSONL written to the destination's encoded-cwd path must have its thinking blocks removed. Cross-account resume is the common case (different humans use different API keys); same-account resume tolerates the strip as a no-op since the validated signature is also accepted in its absence.
+
+**Scope note:** Drev redacts secrets (§8) and rewrites paths (§7) and now strips thinking blocks. The shared JSONL is increasingly *not* a verbatim copy of the producer's local file — it's a serialization of the session's *content* designed for portability. Document this in v2 of ARCHITECTURE.md so future implementers don't assume byte-fidelity.
+
 ## How to update the architecture
 
 These corrections supersede the conflicting passages in `ARCHITECTURE.md`. Rather than editing the architecture document in place (which would lose its design-time integrity), implementers should consult this file alongside it. When v0 ships, fold these into a v2 of the architecture doc.
