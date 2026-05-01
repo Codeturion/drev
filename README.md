@@ -17,7 +17,7 @@ The bundled Claude Code skill makes the flow feel native: just say *"save this s
 
 > v0. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/CORRECTIONS.md](./docs/CORRECTIONS.md). License: MIT.
 
-## Demo
+## <img src="./assets/icons/demo.png" alt="" width="40" align="absmiddle"> Demo
 
 <p align="center">
   <img src="./demo.gif" alt="Drev demo: producer shares a session, consumer resumes on a different machine" width="800" />
@@ -25,7 +25,7 @@ The bundled Claude Code skill makes the flow feel native: just say *"save this s
 
 *Engineer A finishes a debugging session in Claude Code and says "save this as auth-fix". Engineer B, on a different machine and a different OS, runs `drev resume auth-fix`. Claude Code opens with the full transcript loaded, every path rewritten to B's machine.*
 
-## Quick start
+## <img src="./assets/icons/quick-start.png" alt="" width="40" align="absmiddle"> Quick start
 
 ```bash
 npm install -g drev
@@ -48,7 +48,7 @@ Two questions, accept the defaults, you're done. You now have a private GitHub r
 
 Requires Node ≥20, `git`, and the [`gh` CLI](https://cli.github.com) (the wizard uses it). For non-GitHub hosts or offline use, see [Reference](#reference).
 
-## Example: a session end-to-end
+## <img src="./assets/icons/example.png" alt="" width="40" align="absmiddle"> Example: a session end-to-end
 
 You finish a debugging session in `~/work/inventory-app`. Inside Claude Code, you say:
 
@@ -67,7 +67,7 @@ Drev pulls the latest, rewrites every path from your machine to theirs (includin
 
 If you forgot to ask Claude to share, the `SessionEnd` hook would have shared automatically when you closed your session. Either way the receiver flow is identical.
 
-## Use it inside Claude Code
+## <img src="./assets/icons/inside-claude-code.png" alt="" width="40" align="absmiddle"> Use it inside Claude Code
 
 The bundled skill teaches Claude to recognize what you mean, so you talk to it naturally:
 
@@ -80,7 +80,7 @@ The bundled skill teaches Claude to recognize what you mean, so you talk to it n
 
 Sharing, listing, searching, renaming, marking, scrubbing all run inside the active session. **Resume is the exception:** it has to spawn a fresh `claude --resume` as a subprocess that takes over the terminal, and Claude's Bash tool doesn't have an interactive TTY to hand over. To resume someone else's session, open a new terminal and run `drev resume <name>` there.
 
-## Use it from the terminal
+## <img src="./assets/icons/from-terminal.png" alt="" width="40" align="absmiddle"> Use it from the terminal
 
 ```bash
 drev share --name auth-fix          # share the most recent session
@@ -90,7 +90,7 @@ drev resume auth-fix                # rewrites paths, places file, spawns Claude
 
 Drev redacts common secrets (Anthropic, OpenAI, GitHub, AWS, Slack, JWTs, private keys, …) before pushing. Full list in [docs/REDACTION.md](./docs/REDACTION.md). For accidents that slip through, `drev scrub <name> --confirm` rewrites history.
 
-## Auto-share
+## <img src="./assets/icons/auto-share.png" alt="" width="40" align="absmiddle"> Auto-share
 
 After `drev init`, sessions whose project is on the whitelist auto-share when they end. The `SessionEnd` hook in `~/.claude/settings.json` fires `drev autoshare-sweep`, which walks `~/.claude/projects/`, picks up anything new in a whitelisted project, and shares it with `visibility: team` by default.
 
@@ -107,7 +107,7 @@ The current project is whitelisted automatically by `drev init`. Other projects 
 
 ---
 
-## Reference
+## <img src="./assets/icons/reference.png" alt="" width="40" align="absmiddle"> Reference
 
 ### All `drev init` forms
 
@@ -176,10 +176,10 @@ If your machine has two GitHub accounts (e.g. work and personal) and only one ha
 
 ---
 
-## How this was built
+## <img src="./assets/icons/how-built.png" alt="" width="40" align="absmiddle"> How this was built
 
 Drev v0 was built in a single working session by one engineer using Claude Code as orchestrator with parallel sub-agents as the workforce. 30 narrowly-scoped tasks across 4 phases, up to 10 agents in parallel at peak, 572 passing tests, 96% line coverage on `core/`, bidirectional cross-OS validation. Build narrative, dispatch pattern, and the four architectural corrections caught by real-world testing: [docs/HOW_THIS_WAS_BUILT.md](./docs/HOW_THIS_WAS_BUILT.md).
 
-## License
+## <img src="./assets/icons/license.png" alt="" width="40" align="absmiddle"> License
 
 MIT.
