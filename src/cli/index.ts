@@ -13,6 +13,7 @@ import * as mark from './commands/mark.js';
 import * as sync from './commands/sync.js';
 import * as scrub from './commands/scrub.js';
 import * as hooks from './commands/hooks.js';
+import * as autoshare from './commands/autoshare.js';
 import * as autoshareSweep from './commands/autoshare-sweep.js';
 
 type CommandModule = { register?: (program: CommanderCommand) => void };
@@ -29,6 +30,7 @@ const modules: CommandModule[] = [
   sync,
   scrub,
   hooks,
+  autoshare,
   autoshareSweep,
 ];
 

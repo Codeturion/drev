@@ -17,6 +17,7 @@ export interface UserConfig {
   auto_summarize: boolean;
   ignore_patterns: string[];
   ignore_paths: string[];
+  auto_share_projects: string[];
   [extra: string]: unknown;
 }
 
@@ -38,6 +39,7 @@ export function defaultUserConfig(): UserConfig {
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   };
 }
 
@@ -203,6 +205,7 @@ const USER_KNOWN_KEYS = new Set([
   'auto_summarize',
   'ignore_patterns',
   'ignore_paths',
+  'auto_share_projects',
 ]);
 
 const REPO_KNOWN_KEYS = new Set([
@@ -249,6 +252,14 @@ function parseUserConfig(
       obj['ignore_paths'] === undefined
         ? defaults.ignore_paths
         : expectStringArray(obj['ignore_paths'], 'ignore_paths', file),
+    auto_share_projects:
+      obj['auto_share_projects'] === undefined
+        ? defaults.auto_share_projects
+        : expectStringArray(
+            obj['auto_share_projects'],
+            'auto_share_projects',
+            file,
+          ),
   };
   for (const [key, value] of Object.entries(obj)) {
     if (!USER_KNOWN_KEYS.has(key)) {

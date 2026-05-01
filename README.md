@@ -20,7 +20,7 @@ drev init <anything> --reinit       # repoint an existing setup
 ```
 Wizard: paste a teammate's URL (joiner) or hit Enter to create your own. Confirm `<your-gh-user>/drev-sessions` private with Y, or `n` to pick a different `<owner>/<name>`.
 
-By default, `drev init` also installs Claude Code hooks (so sessions auto-share when they end) and a `drev` skill (so saying "save this session" inside Claude Code just works). Pass `--no-auto-share` to skip both.
+By default, `drev init` also installs Claude Code hooks and a `drev` skill, and adds the current project to the auto-share whitelist (`auto_share_projects` in `~/.drev/config.yaml`). Auto-share is scoped — only sessions from whitelisted projects are shared. Pass `--no-auto-share` to skip the hook/skill install entirely; use `drev autoshare add` to whitelist additional projects.
 
 ## Share
 

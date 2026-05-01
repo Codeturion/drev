@@ -8,7 +8,7 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Command } from 'commander';
 import { claudeProjectsDir, drevHome } from '../../core/claude-paths.js';
@@ -155,6 +155,18 @@ async function sweepBody(
     return;
   }
 
+  // Whitelist short-circuit: if no projects are whitelisted, the sweep is a
+  // no-op. Log this once at the body level rather than per-session.
+  if (userCfg.auto_share_projects.length === 0) {
+    await safeLog(
+      logger,
+      'info',
+      'auto_share_projects is empty; nothing to sweep.',
+    );
+    return;
+  }
+
+  const whitelist = userCfg.auto_share_projects;
   const repoDir = userCfg.default_repo;
   const visibility: 'team' | 'private' =
     userCfg.auto_share === 'auto-private' ? 'private' : 'team';
@@ -190,6 +202,7 @@ async function sweepBody(
     skippedShared: 0,
     skippedDisabled: 0,
     skippedNoCwd: 0,
+    skippedNotWhitelisted: 0,
     shared: 0,
     failed: 0,
   };
@@ -235,6 +248,7 @@ async function sweepBody(
           nowMs,
           idleThresholdMs,
           alreadyShared,
+          whitelist,
           share,
           visibility,
           logger,
@@ -264,6 +278,7 @@ interface SweepSummary {
   skippedShared: number;
   skippedDisabled: number;
   skippedNoCwd: number;
+  skippedNotWhitelisted: number;
   shared: number;
   failed: number;
 }
@@ -273,6 +288,7 @@ interface ProcessArgs {
   nowMs: number;
   idleThresholdMs: number;
   alreadyShared: Set<string>;
+  whitelist: string[];
   share: typeof executeShare;
   visibility: 'team' | 'private';
   logger: Logger;
@@ -310,6 +326,14 @@ async function processOne(a: ProcessArgs): Promise<void> {
     await safeLog(a.logger, 'warn', 'session JSONL had no cwd; skipping', {
       path: a.jsonlPath,
     });
+    return;
+  }
+
+  // Whitelist check (per-project scoping). Sessions outside the whitelist are
+  // silently skipped — this is the primary filter; .drev-disable below is the
+  // per-project opt-out for whitelisted entries.
+  if (!isUnderAnyWhitelisted(projectRoot, a.whitelist)) {
+    a.summary.skippedNotWhitelisted += 1;
     return;
   }
 
@@ -360,6 +384,23 @@ async function processOne(a: ProcessArgs): Promise<void> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+export function isUnderAnyWhitelisted(cwd: string, paths: string[]): boolean {
+  if (paths.length === 0) return false;
+  const target = normalizeForCompare(cwd);
+  const sep = process.platform === 'win32' ? '\\' : '/';
+  for (const entry of paths) {
+    const normalized = normalizeForCompare(entry);
+    if (target === normalized) return true;
+    if (target.startsWith(normalized + sep)) return true;
+  }
+  return false;
+}
+
+function normalizeForCompare(p: string): string {
+  const n = normalize(p);
+  return process.platform === 'win32' ? n.toLowerCase() : n;
+}
 
 function sessionIdFromPath(jsonlPath: string): string | null {
   // Path looks like ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, normalize } from 'node:path';
 import { promisify } from 'node:util';
 import type { Command } from 'commander';
 import * as gitOps from '../../core/git-ops.js';
@@ -89,13 +89,50 @@ async function maybeAutoInstall(opts: InitOptions): Promise<void> {
     info('Auto-share skipped. Run `drev hooks install` to enable later.');
     return;
   }
+  let hooksOk = false;
   try {
     await runHooksInstall();
+    hooksOk = true;
     info('Auto-share enabled. Hooks + skill installed. Run `drev hooks uninstall` to disable.');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     warn(`Auto-install of hooks/skill failed: ${msg}. Run \`drev hooks install\` to retry.`);
   }
+  if (hooksOk) {
+    try {
+      await maybeWhitelistCurrentProject();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warn(`Could not update auto-share whitelist: ${msg}.`);
+    }
+  }
+}
+
+async function maybeWhitelistCurrentProject(): Promise<void> {
+  const project = await determineProjectToWhitelist();
+  if (project === null) return;
+  const cfg = await readUserConfig();
+  const normalizedNew = normalizeForCompare(project);
+  const already = cfg.auto_share_projects.some(
+    (p) => normalizeForCompare(p) === normalizedNew,
+  );
+  if (already) return;
+  cfg.auto_share_projects = [...cfg.auto_share_projects, project];
+  await writeUserConfig(cfg);
+  info(`Added ${project} to auto-share whitelist.`);
+}
+
+async function determineProjectToWhitelist(): Promise<string | null> {
+  const cwd = process.cwd();
+  const top = await gitOps.showTopLevel(cwd).catch(() => null);
+  if (top !== null && top !== '') return top;
+  if (cwd !== '') return cwd;
+  return null;
+}
+
+function normalizeForCompare(p: string): string {
+  const n = normalize(p);
+  return process.platform === 'win32' ? n.toLowerCase() : n;
 }
 
 type Mode =

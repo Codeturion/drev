@@ -147,6 +147,7 @@ async function setupHappyMocks(opts: SetupOpts): Promise<{ parentPath: string }>
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   });
 
   vi.mocked(config.readRepoConfig).mockResolvedValue({
@@ -280,6 +281,7 @@ describe('executeShare — sessionId override', () => {
         auto_summarize: false,
         ignore_patterns: [],
         ignore_paths: [],
+        auto_share_projects: [],
       });
       vi.mocked(config.readRepoConfig).mockResolvedValue({
         schema_version: 1,
@@ -372,6 +374,7 @@ describe('executeShare — no session found', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
     vi.mocked(config.readRepoConfig).mockResolvedValue({
       schema_version: 1,
@@ -396,6 +399,7 @@ describe('executeShare — no session found', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
     await expect(executeShare({ interactive: false })).rejects.toBeInstanceOf(
       ConfigError,
@@ -487,6 +491,130 @@ describe('executeShare — subagent JSONLs', () => {
 
     // redact() should have been called for parent + each subagent (3 total).
     expect(redaction.redact).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('executeShare — Layer-3 auto-share nudge', () => {
+  it('prints the nudge when pushed, interactive, and project is NOT whitelisted', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    const cwd = '/Users/alice/work/proj';
+    await setupHappyMocks({
+      repoDir,
+      cwd,
+      metaFiles: [
+        join(repoDir, 'users', 'alice', '2026-04-29-prev', 'meta.yaml'),
+      ],
+    });
+    // No auto-share-projects entries -> not whitelisted.
+    vi.mocked(config.readUserConfig).mockResolvedValue({
+      schema_version: 1,
+      default_repo: repoDir,
+      auto_share: 'auto-team',
+      auto_share_idle_threshold_seconds: 60,
+      auto_summarize: false,
+      ignore_patterns: [],
+      ignore_paths: [],
+      auto_share_projects: [],
+    });
+
+    await executeShare({ name: 'thing', interactive: true });
+
+    const messages = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(
+      messages.some((m) => m.includes('not on the auto-share list')),
+    ).toBe(true);
+    expect(
+      messages.some((m) => m.includes('drev autoshare add')),
+    ).toBe(true);
+  });
+
+  it('does NOT print the nudge when project IS under a whitelisted entry', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    const cwd = '/Users/alice/work/proj';
+    await setupHappyMocks({
+      repoDir,
+      cwd,
+      metaFiles: [
+        join(repoDir, 'users', 'alice', '2026-04-29-prev', 'meta.yaml'),
+      ],
+    });
+    vi.mocked(config.readUserConfig).mockResolvedValue({
+      schema_version: 1,
+      default_repo: repoDir,
+      auto_share: 'auto-team',
+      auto_share_idle_threshold_seconds: 60,
+      auto_summarize: false,
+      ignore_patterns: [],
+      ignore_paths: [],
+      auto_share_projects: ['/Users/alice/work'],
+    });
+
+    await executeShare({ name: 'thing', interactive: true });
+
+    const messages = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(
+      messages.some((m) => m.includes('not on the auto-share list')),
+    ).toBe(false);
+  });
+
+  it('does NOT print the nudge when interactive=false (sweep caller)', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    const cwd = '/Users/alice/work/proj';
+    await setupHappyMocks({
+      repoDir,
+      cwd,
+      metaFiles: [
+        join(repoDir, 'users', 'alice', '2026-04-29-prev', 'meta.yaml'),
+      ],
+    });
+    vi.mocked(config.readUserConfig).mockResolvedValue({
+      schema_version: 1,
+      default_repo: repoDir,
+      auto_share: 'auto-team',
+      auto_share_idle_threshold_seconds: 60,
+      auto_summarize: false,
+      ignore_patterns: [],
+      ignore_paths: [],
+      auto_share_projects: [],
+    });
+
+    await executeShare({ name: 'thing', interactive: false });
+
+    const messages = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(
+      messages.some((m) => m.includes('not on the auto-share list')),
+    ).toBe(false);
+  });
+
+  it('does NOT print the nudge when push failed (queued to outbox)', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    const cwd = '/Users/alice/work/proj';
+    await setupHappyMocks({
+      repoDir,
+      cwd,
+      pushFails: true,
+      metaFiles: [
+        join(repoDir, 'users', 'alice', '2026-04-29-prev', 'meta.yaml'),
+      ],
+    });
+    vi.mocked(config.readUserConfig).mockResolvedValue({
+      schema_version: 1,
+      default_repo: repoDir,
+      auto_share: 'auto-team',
+      auto_share_idle_threshold_seconds: 60,
+      auto_summarize: false,
+      ignore_patterns: [],
+      ignore_paths: [],
+      auto_share_projects: [],
+    });
+
+    const result = await executeShare({ name: 'thing', interactive: true });
+    expect(result.pushed).toBe(false);
+
+    const messages = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(
+      messages.some((m) => m.includes('not on the auto-share list')),
+    ).toBe(false);
   });
 });
 

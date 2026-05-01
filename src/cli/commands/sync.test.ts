@@ -54,6 +54,7 @@ vi.mock('../../core/config.js', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     })),
   };
 });
@@ -142,6 +143,7 @@ beforeEach(() => {
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   });
   vi.mocked(gitOps.pullRebase).mockResolvedValue(undefined);
   vi.mocked(gitOps.add).mockResolvedValue(undefined);
@@ -169,6 +171,7 @@ describe('runSync config gate', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
     await expect(runSync()).rejects.toBeInstanceOf(ConfigError);
     expect(gitOps.pullRebase).not.toHaveBeenCalled();
@@ -186,6 +189,7 @@ describe('runSync empty outbox', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
     vi.mocked(outbox.listQueued).mockResolvedValueOnce([]);
 
@@ -211,6 +215,7 @@ describe('runSync all drain', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
 
     const items: FakeItem[] = [
@@ -275,6 +280,7 @@ describe('runSync partial drain', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
 
     const items: FakeItem[] = [
@@ -335,6 +341,7 @@ describe('runSync all fail', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
 
     const items: FakeItem[] = [
@@ -375,6 +382,7 @@ describe('runSync all fail', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
 
     vi.mocked(outbox.listQueued).mockResolvedValueOnce(['broken']);

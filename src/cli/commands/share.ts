@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, normalize } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Command } from 'commander';
 import { ConfigError, RepoError, SessionError } from '../../lib/errors.js';
@@ -255,6 +255,17 @@ export async function executeShare(
     info(
       `Shared ${resolvedName ?? shortId} (id: ${shortId}, ${stats.turns} turns, ${totalRedactions} redactions).`,
     );
+  }
+
+  // 14. Layer-3 nudge: if pushed and the project isn't on the auto-share
+  // whitelist, hint the user about `drev autoshare add`. Only surfaced for the
+  // public CLI flow (interactive=true); sweep callers (interactive=false) must
+  // not log this — it would be noise in the sweep log.
+  if (pushed && interactive && meta.project_root !== '') {
+    if (!isUnderAnyWhitelisted(meta.project_root, userCfg.auto_share_projects)) {
+      info(`This project (${meta.project_root}) is not on the auto-share list.`);
+      info('   Run `drev autoshare add` to keep sharing future sessions automatically.');
+    }
   }
 
   return {
@@ -531,4 +542,21 @@ function sumCounts(counts: Record<string, number>): number {
   let n = 0;
   for (const v of Object.values(counts)) n += v;
   return n;
+}
+
+function isUnderAnyWhitelisted(cwd: string, paths: string[]): boolean {
+  if (paths.length === 0) return false;
+  const target = normalizeForCompare(cwd);
+  const sep = process.platform === 'win32' ? '\\' : '/';
+  for (const entry of paths) {
+    const normalized = normalizeForCompare(entry);
+    if (target === normalized) return true;
+    if (target.startsWith(normalized + sep)) return true;
+  }
+  return false;
+}
+
+function normalizeForCompare(p: string): string {
+  const n = normalize(p);
+  return process.platform === 'win32' ? n.toLowerCase() : n;
 }

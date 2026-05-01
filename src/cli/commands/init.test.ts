@@ -690,6 +690,101 @@ describe('runInit auto-install (CORRECTIONS.md §3)', () => {
   });
 });
 
+describe('runInit auto-share whitelist (init adds current project)', () => {
+  beforeEach(() => {
+    vi.mocked(hooks.runInstall).mockReset();
+    vi.mocked(hooks.runInstall).mockResolvedValue(undefined);
+  });
+
+  it('adds the git toplevel of cwd to auto_share_projects on default init', async () => {
+    const home = await withFakeHome();
+    const project = await makeTmp('drev-current-proj-');
+    vi.mocked(gitOps.showTopLevel).mockResolvedValue(project);
+
+    await runInit('https://github.com/org/repo.git', {});
+
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['auto_share_projects']).toEqual([project]);
+  });
+
+  it('falls back to cwd when not in a git repo', async () => {
+    const home = await withFakeHome();
+    vi.mocked(gitOps.showTopLevel).mockResolvedValue(null);
+
+    await runInit('https://github.com/org/repo.git', {});
+
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    const list = userCfg['auto_share_projects'] as string[];
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBe(1);
+    expect(list[0]).toBe(process.cwd());
+  });
+
+  it('--no-auto-share skips whitelist update entirely', async () => {
+    const home = await withFakeHome();
+    const project = await makeTmp('drev-current-proj-');
+    vi.mocked(gitOps.showTopLevel).mockResolvedValue(project);
+
+    await runInit('https://github.com/org/repo.git', { autoShare: false });
+
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['auto_share_projects']).toEqual([]);
+    expect(vi.mocked(hooks.runInstall)).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate when current project is already whitelisted', async () => {
+    const home = await withFakeHome();
+    const project = await makeTmp('drev-current-proj-');
+    vi.mocked(gitOps.showTopLevel).mockResolvedValue(project);
+
+    // Pre-write a config with the project already on the list (and an existing default_repo
+    // is required to bypass the already-initialized guard via --reinit).
+    const cfgDir = join(home, '.drev');
+    await mkdir(cfgDir, { recursive: true });
+    await writeFile(
+      join(cfgDir, 'config.yaml'),
+      yaml.dump({
+        schema_version: 1,
+        default_repo: '/old/path',
+        auto_share: 'auto-team',
+        auto_share_idle_threshold_seconds: 60,
+        auto_summarize: false,
+        ignore_patterns: [],
+        ignore_paths: [],
+        auto_share_projects: [project],
+      }),
+      'utf8',
+    );
+
+    await runInit('https://github.com/org/repo.git', { reinit: true });
+
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['auto_share_projects']).toEqual([project]);
+  });
+
+  it('skips whitelist when hook install failed', async () => {
+    const home = await withFakeHome();
+    const project = await makeTmp('drev-current-proj-');
+    vi.mocked(gitOps.showTopLevel).mockResolvedValue(project);
+    vi.mocked(hooks.runInstall).mockRejectedValueOnce(new Error('boom'));
+
+    await runInit('https://github.com/org/repo.git', {});
+
+    const userCfg = yaml.load(
+      await readFile(join(home, '.drev', 'config.yaml'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(userCfg['auto_share_projects']).toEqual([]);
+  });
+});
+
 describe('runInit LOCAL mode', () => {
   it('creates default bare repo, clones, scaffolds', async () => {
     const home = await withFakeHome();

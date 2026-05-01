@@ -28,7 +28,7 @@ vi.mock('./share.js', () => ({
 import * as gitOps from '../../core/git-ops.js';
 import * as identity from '../../core/identity.js';
 import { executeShare } from './share.js';
-import { runSweep } from './autoshare-sweep.js';
+import { isUnderAnyWhitelisted, runSweep } from './autoshare-sweep.js';
 import type { Logger } from '../../lib/logger.js';
 
 // ---------------------------------------------------------------------------
@@ -112,6 +112,7 @@ interface UserConfigShape {
   auto_summarize: boolean;
   ignore_patterns: string[];
   ignore_paths: string[];
+  auto_share_projects: string[];
 }
 
 async function writeUserConfig(home: string, cfg: Partial<UserConfigShape>): Promise<void> {
@@ -125,6 +126,10 @@ async function writeUserConfig(home: string, cfg: Partial<UserConfigShape>): Pro
     auto_summarize: cfg.auto_summarize ?? false,
     ignore_patterns: cfg.ignore_patterns ?? [],
     ignore_paths: cfg.ignore_paths ?? [],
+    // Default to the OS tempdir so existing tests (whose session cwds are all
+    // makeTmp-derived under os.tmpdir()) keep passing. Tests that exercise the
+    // whitelist explicitly override this field.
+    auto_share_projects: cfg.auto_share_projects ?? [tmpdir()],
   };
   // YAML-but-also-valid-JSON. js-yaml parses JSON happily, which keeps the
   // test harness free of yet another dependency.
@@ -402,6 +407,151 @@ describe('runSweep — walks JSONLs and applies skip rules', () => {
 
     expect(cap.stdout).toBe('');
     expect(cap.stderr).toBe('');
+    expect(executeShare).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('isUnderAnyWhitelisted', () => {
+  it('returns false for an empty whitelist', () => {
+    expect(isUnderAnyWhitelisted('/any/path', [])).toBe(false);
+  });
+
+  it('matches an exact path equality', () => {
+    if (process.platform === 'win32') {
+      expect(isUnderAnyWhitelisted('C:\\Users\\me\\proj', ['C:\\Users\\me\\proj'])).toBe(true);
+    } else {
+      expect(isUnderAnyWhitelisted('/home/me/proj', ['/home/me/proj'])).toBe(true);
+    }
+  });
+
+  it('matches a subdirectory', () => {
+    if (process.platform === 'win32') {
+      expect(
+        isUnderAnyWhitelisted('C:\\Users\\me\\proj\\sub', ['C:\\Users\\me\\proj']),
+      ).toBe(true);
+    } else {
+      expect(isUnderAnyWhitelisted('/home/me/proj/sub', ['/home/me/proj'])).toBe(true);
+    }
+  });
+
+  it('rejects sibling paths that share a prefix string but not a directory boundary', () => {
+    if (process.platform === 'win32') {
+      expect(
+        isUnderAnyWhitelisted('C:\\Users\\me\\proj-other', ['C:\\Users\\me\\proj']),
+      ).toBe(false);
+    } else {
+      expect(isUnderAnyWhitelisted('/home/me/proj-other', ['/home/me/proj'])).toBe(false);
+    }
+  });
+
+  if (process.platform === 'win32') {
+    it('compares case-insensitively on Windows', () => {
+      expect(
+        isUnderAnyWhitelisted('C:\\USERS\\Me\\Proj', ['c:\\users\\me\\proj']),
+      ).toBe(true);
+    });
+  }
+});
+
+describe('runSweep — whitelist filtering', () => {
+  it('logs once and returns when auto_share_projects is empty (no per-session work)', async () => {
+    const home = await withFakeHome();
+    const repoDir = await makeTmp('drev-sweep-repo-');
+    await writeUserConfig(home, {
+      auto_share: 'auto-team',
+      default_repo: repoDir,
+      auto_share_projects: [],
+    });
+
+    // Even an otherwise-eligible session must NOT be processed when the
+    // whitelist is empty.
+    const claudeRoot = join(home, '.claude', 'projects');
+    const eligibleRoot = await makeTmp('drev-sweep-empty-wl-');
+    const id = 'aaaaaaaa-1111-1111-1111-111111111111';
+    await writeJsonl(
+      join(claudeRoot, '-proj-x', `${id}.jsonl`),
+      [{ type: 'user', cwd: eligibleRoot }],
+      Date.now() - 5 * 60_000,
+    );
+
+    const infoCalls: Array<{ msg: string; data?: Record<string, unknown> }> = [];
+    const logger: Logger = {
+      info: async (msg, data) => {
+        infoCalls.push({ msg, ...(data !== undefined ? { data } : {}) });
+      },
+      warn: async () => {},
+      error: async () => {},
+    };
+
+    await runSweep({ logger });
+
+    expect(executeShare).not.toHaveBeenCalled();
+    // The "empty whitelist" message is logged once at the body level.
+    const matches = infoCalls.filter((c) =>
+      c.msg.includes('auto_share_projects is empty'),
+    );
+    expect(matches).toHaveLength(1);
+  });
+
+  it('skips sessions whose cwd is not under any whitelisted entry', async () => {
+    const home = await withFakeHome();
+    const repoDir = await makeTmp('drev-sweep-repo-');
+    const whitelistedRoot = await makeTmp('drev-sweep-wl-');
+    const outsideRoot = await makeTmp('drev-sweep-outside-');
+
+    await writeUserConfig(home, {
+      auto_share: 'auto-team',
+      default_repo: repoDir,
+      auto_share_projects: [whitelistedRoot],
+    });
+
+    const claudeRoot = join(home, '.claude', 'projects');
+    const fiveMinAgo = Date.now() - 5 * 60_000;
+
+    // Session in whitelisted project — should share.
+    const idIn = 'aaaaaaaa-2222-2222-2222-222222222222';
+    await writeJsonl(
+      join(claudeRoot, '-proj-in', `${idIn}.jsonl`),
+      [{ type: 'user', cwd: whitelistedRoot }],
+      fiveMinAgo,
+    );
+    // Session in non-whitelisted project — should be skipped.
+    const idOut = 'bbbbbbbb-3333-3333-3333-333333333333';
+    await writeJsonl(
+      join(claudeRoot, '-proj-out', `${idOut}.jsonl`),
+      [{ type: 'user', cwd: outsideRoot }],
+      fiveMinAgo,
+    );
+
+    await runSweep({ logger: nullLogger() });
+
+    expect(executeShare).toHaveBeenCalledTimes(1);
+    const callArgs = vi.mocked(executeShare).mock.calls[0]![0];
+    expect(callArgs.sessionId).toBe(idIn);
+  });
+
+  it('shares sessions in subdirectories of a whitelisted entry', async () => {
+    const home = await withFakeHome();
+    const repoDir = await makeTmp('drev-sweep-repo-');
+    const root = await makeTmp('drev-sweep-wl-root-');
+    const subPath = join(root, 'sub', 'deeper');
+    await mkdir(subPath, { recursive: true });
+
+    await writeUserConfig(home, {
+      auto_share: 'auto-team',
+      default_repo: repoDir,
+      auto_share_projects: [root],
+    });
+
+    const claudeRoot = join(home, '.claude', 'projects');
+    const id = 'cccccccc-4444-4444-4444-444444444444';
+    await writeJsonl(
+      join(claudeRoot, '-proj-sub', `${id}.jsonl`),
+      [{ type: 'user', cwd: subPath }],
+      Date.now() - 5 * 60_000,
+    );
+
+    await runSweep({ logger: nullLogger() });
     expect(executeShare).toHaveBeenCalledTimes(1);
   });
 });

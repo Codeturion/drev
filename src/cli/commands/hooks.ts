@@ -44,6 +44,10 @@ Drev shares Claude Code session JSONLs through a Git repo. Commands run via the 
 ## Scope
 
 Don't auto-share without explicit user intent — auto-share is handled separately by hooks. This skill is for explicit user-driven actions during a session.
+
+## Auto-share follow-up
+
+After running \`drev share\` for a project for the first time, the output may print "This project is not on the auto-share list." If the user reasonably wants future sessions from this project to auto-share, ask: "Want me to also auto-share future sessions from this project?" If yes, run \`drev autoshare add\` via Bash.
 `;
 
 interface HookEntry {

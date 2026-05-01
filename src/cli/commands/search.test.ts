@@ -22,6 +22,7 @@ vi.mock('../../core/config.js', () => ({
     auto_summarize: false,
     ignore_patterns: [] as string[],
     ignore_paths: [] as string[],
+    auto_share_projects: [] as string[],
   })),
 }));
 
@@ -135,6 +136,7 @@ beforeEach(() => {
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   });
 });
 

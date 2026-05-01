@@ -46,6 +46,7 @@ vi.mock('../../core/config.js', () => ({
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   })),
 }));
 
@@ -96,6 +97,7 @@ beforeEach(() => {
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   });
   vi.mocked(identity.currentUserEmail).mockResolvedValue('me@example.com');
 });
@@ -243,6 +245,7 @@ describe('runRename happy path', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
 
     await expect(runRename('whatever', 'new-name')).rejects.toBeInstanceOf(

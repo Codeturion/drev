@@ -356,6 +356,14 @@ describe('skill install/uninstall', () => {
     expect(content).toContain('Drev — Claude Code session sharing');
   });
 
+  it('SKILL.md content includes the Auto-share follow-up section', () => {
+    expect(DREV_SKILL_CONTENT).toContain('## Auto-share follow-up');
+    expect(DREV_SKILL_CONTENT).toContain('drev autoshare add');
+    expect(DREV_SKILL_CONTENT).toContain(
+      'Want me to also auto-share future sessions from this project?',
+    );
+  });
+
   it('installSkill is idempotent (overwrites existing file at our path)', async () => {
     const home = await withFakeHome();
     const skillsRoot = join(home, '.claude', 'skills');

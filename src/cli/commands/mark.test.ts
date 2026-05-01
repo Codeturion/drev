@@ -62,6 +62,7 @@ vi.mock('../../core/config.js', () => ({
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   })),
 }));
 
@@ -120,6 +121,7 @@ beforeEach(() => {
     auto_summarize: false,
     ignore_patterns: [],
     ignore_paths: [],
+    auto_share_projects: [],
   });
 });
 
@@ -274,6 +276,7 @@ describe('runMark config preconditions', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
     await expect(
       runMark('auth-refactor', { team: true }),

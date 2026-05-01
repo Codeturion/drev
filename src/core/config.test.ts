@@ -40,6 +40,7 @@ describe('defaultUserConfig', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     });
   });
 
@@ -96,6 +97,7 @@ describe('readUserConfig', () => {
       auto_summarize: true,
       ignore_patterns: ['SECRET_[A-Z]+'],
       ignore_paths: ['secrets/', '.env'],
+      auto_share_projects: ['/home/me/work/proj-a', '/home/me/work/proj-b'],
     };
     await writeFile(join(dir, 'config.yaml'), yaml.dump(value), 'utf8');
     const cfg = await readUserConfig({ dir });
@@ -116,6 +118,7 @@ describe('readUserConfig', () => {
     expect(cfg.auto_summarize).toBe(false);
     expect(cfg.ignore_patterns).toEqual([]);
     expect(cfg.ignore_paths).toEqual([]);
+    expect(cfg.auto_share_projects).toEqual([]);
     expect(cfg.auto_share_idle_threshold_seconds).toBe(60);
   });
 
@@ -248,6 +251,43 @@ describe('writeUserConfig', () => {
     await writeUserConfig(value, { dir });
     const reread = await readUserConfig({ dir });
     expect(reread['future_field']).toEqual({ nested: ['a', 'b'] });
+  });
+
+  it('round-trips auto_share_projects', async () => {
+    const dir = await makeTmp('drev-user-');
+    const value: UserConfig = {
+      ...defaultUserConfig(),
+      auto_share_projects: [
+        '/home/me/work/proj-a',
+        'F:\\Nuts Projects\\drev',
+      ],
+    };
+    await writeUserConfig(value, { dir });
+    const reread = await readUserConfig({ dir });
+    expect(reread.auto_share_projects).toEqual([
+      '/home/me/work/proj-a',
+      'F:\\Nuts Projects\\drev',
+    ]);
+  });
+
+  it('throws ConfigError when auto_share_projects is not an array', async () => {
+    const dir = await makeTmp('drev-user-');
+    await writeFile(
+      join(dir, 'config.yaml'),
+      'schema_version: 1\nauto_share_projects: "not-an-array"\n',
+      'utf8',
+    );
+    await expect(readUserConfig({ dir })).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  it('throws ConfigError when auto_share_projects has non-string item', async () => {
+    const dir = await makeTmp('drev-user-');
+    await writeFile(
+      join(dir, 'config.yaml'),
+      'schema_version: 1\nauto_share_projects:\n  - 42\n',
+      'utf8',
+    );
+    await expect(readUserConfig({ dir })).rejects.toBeInstanceOf(ConfigError);
   });
 
   it('creates the directory if missing', async () => {

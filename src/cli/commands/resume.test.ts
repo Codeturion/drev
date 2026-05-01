@@ -53,6 +53,7 @@ vi.mock('../../core/config.js', () => {
       auto_summarize: false,
       ignore_patterns: [],
       ignore_paths: [],
+      auto_share_projects: [],
     })),
   };
 });
