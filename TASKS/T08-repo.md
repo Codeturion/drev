@@ -7,7 +7,7 @@
 
 Manage the local Git clone of a Drev repo: scaffold structure on first init, walk the directory tree, locate session paths, ensure `.drev/` invariants.
 
-### Contract (suggested — refine during implementation)
+### Contract (suggested: refine during implementation)
 
 ```ts
 async function ensureScaffold(repoDir: string, teamName: string): Promise<void>;
@@ -36,12 +36,12 @@ function dateAndNamePrefix(date: Date, name: string | null, shortId: string): st
 
 - `ensureScaffold` is idempotent (running twice doesn't duplicate or fail)
 - `listMetaFiles` correctly walks the per-user tree (test with a mock filesystem layout)
-- `sanitizeName` handles edge cases: emoji (stripped), unicode letters (transliterated or stripped — pick one and document), excessive length (truncate to 64 chars)
+- `sanitizeName` handles edge cases: emoji (stripped), unicode letters (transliterated or stripped, pick one and document), excessive length (truncate to 64 chars)
 - `dateAndNamePrefix` always produces a valid filesystem name on Windows + POSIX
 - ≥85% line coverage
 
 ## Out of scope
 
-- Conflict resolution between users — handled by `users/<username>/` partitioning per §3.3
-- Git operations — those are in T05
-- Outbox handling — that's T10
+- Conflict resolution between users, handled by `users/<username>/` partitioning per §3.3
+- Git operations, those are in T05
+- Outbox handling, that's T10

@@ -19,7 +19,7 @@ Implement `drev resume <name-or-id> [--into <path>] [--no-launch]` per §9.5.
    - Else `gitOps.showTopLevel(cwd)`
    - Else prompt user
 5. Compare `meta.commit_sha` to local HEAD; warn if files in `meta.files_touched` have changed since
-6. Run `pathRewriter.rewritePaths(jsonl, meta.project_root, destRoot)` — preserving native separators (CORRECTIONS §1)
+6. Run `pathRewriter.rewritePaths(jsonl, meta.project_root, destRoot)`: preserving native separators (CORRECTIONS §1)
 7. Compute destination encoded-cwd via `core/claude-paths`
 8. Write rewritten JSONL to `<claudeProjectsDir>/<encoded>/<id>.jsonl`
 9. Also rewrite + place each subagent JSONL at `<claudeProjectsDir>/<encoded>/<id>/subagents/*.jsonl` (CORRECTIONS §2)
@@ -45,6 +45,6 @@ Implement `drev resume <name-or-id> [--into <path>] [--no-launch]` per §9.5.
 
 ## Out of scope
 
-- Auto-rebase the user's working tree to `meta.commit_sha` — too invasive for v0
-- Conflict reconciliation when files differ — only warn, don't try to merge
-- Detached-mode resume (without spawning) for CI — already covered by `--no-launch`
+- Auto-rebase the user's working tree to `meta.commit_sha`: too invasive for v0
+- Conflict reconciliation when files differ, only warn, don't try to merge
+- Detached-mode resume (without spawning) for CI, already covered by `--no-launch`

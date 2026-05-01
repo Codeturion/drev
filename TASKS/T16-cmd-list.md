@@ -9,13 +9,13 @@ Implement `drev list [filters]` per §9.4.
 
 ### Filters
 
-- `--mine` — own sessions only
-- `--team` — team-visible (excludes own private/backups)
-- `--backups` — own backups only
-- `--project <name>` — substring on `meta.project`
-- `--user <username>` — exact match on `meta.user`
-- `--days <n>` — within last N days (by `shared_at`)
-- `--limit <n>` — cap (default 20)
+- `--mine`: own sessions only
+- `--team`: team-visible (excludes own private/backups)
+- `--backups`: own backups only
+- `--project <name>`: substring on `meta.project`
+- `--user <username>`: exact match on `meta.user`
+- `--days <n>`: within last N days (by `shared_at`)
+- `--limit <n>`: cap (default 20)
 
 ### Flow
 
@@ -40,6 +40,6 @@ Implement `drev list [filters]` per §9.4.
 
 ## Out of scope
 
-- Pagination — `--limit` is enough
-- Output formats other than the default table — defer to v0.1
-- Server-side filtering — there is no server
+- Pagination, `--limit` is enough
+- Output formats other than the default table, defer to v0.1
+- Server-side filtering, there is no server

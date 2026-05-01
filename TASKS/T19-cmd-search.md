@@ -32,6 +32,6 @@ Implement `drev search <query>` per §9.7.
 
 ## Out of scope
 
-- Full-text JSONL search (search inside session content) — v0.5 (§14.4)
-- Boolean operators / regex queries — v0.5
-- Search ranking by relevance — substring is enough for v0
+- Full-text JSONL search (search inside session content), v0.5 (§14.4)
+- Boolean operators / regex queries, v0.5
+- Search ranking by relevance, substring is enough for v0

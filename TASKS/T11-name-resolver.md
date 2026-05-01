@@ -46,5 +46,5 @@ function matchByName(query: string, meta: SessionMeta): boolean;
 
 ## Out of scope
 
-- Fuzzy matching — substring is enough
-- Auto-completion — T16 list helps with that
+- Fuzzy matching, substring is enough
+- Auto-completion, T16 list helps with that

@@ -9,13 +9,13 @@ Replace the current pre-v0 README with a v0 quickstart. Constraint: under 50 lin
 
 ### Required sections
 
-1. **What it is** — one paragraph
-2. **Install** — `npm install -g drev`
-3. **First setup** — `drev init <repo-url>`
-4. **Share** — `drev share` (and what gets shared)
-5. **Resume** — `drev resume <name>` (and what happens next)
-6. **Auto-share (opt-in)** — `drev hooks install`, mention §3.9
-7. **License + contributing** — one line each, link to ARCHITECTURE.md
+1. **What it is**, one paragraph
+2. **Install**, `npm install -g drev`
+3. **First setup**, `drev init <repo-url>`
+4. **Share**, `drev share` (and what gets shared)
+5. **Resume**, `drev resume <name>` (and what happens next)
+6. **Auto-share (opt-in)**, `drev hooks install`, mention §3.9
+7. **License + contributing**, one line each, link to ARCHITECTURE.md
 
 ### Tone
 
@@ -37,5 +37,5 @@ Power-user friendly. No marketing fluff. Show actual command output where releva
 
 ## Out of scope
 
-- Tutorial-style docs ("getting started in 30 minutes") — defer to v0.1 if user feedback wants it
-- API reference docs — Drev is a CLI, not a library
+- Tutorial-style docs ("getting started in 30 minutes"), defer to v0.1 if user feedback wants it
+- API reference docs, Drev is a CLI, not a library

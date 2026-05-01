@@ -1,20 +1,20 @@
-# Drev v0 — Task Index
+# Drev v0: Task Index
 
 Operational view of v0 work. Each row links to a task file with full scope, acceptance, and references. Strategic plan: [`docs/v0-plan.md`](../docs/v0-plan.md).
 
 **Legend:** `☐` pending · `▶` in progress · `✓` done
 
-## Phase A — Foundations
+## Phase A: Foundations
 
 | ID | Task | Status | Depends on | Notes |
 |----|------|--------|------------|-------|
-| [T01](T01-lib.md) | `lib/errors.ts` + `lib/logger.ts` | ✓ | — | Typed errors, structured log |
+| [T01](T01-lib.md) | `lib/errors.ts` + `lib/logger.ts` | ✓ |  | Typed errors, structured log |
 | [T02](T02-claude-paths.md) | `core/claude-paths.ts` | ✓ | T01 | encoded-cwd computation |
 | [T03](T03-path-rewriter.md) | `core/path-rewriter.ts` | ✓ | T01 | **Load-bearing.** §7 + CORRECTIONS §1 |
 | [T04](T04-redaction.md) | `core/redaction.ts` | ✓ | T01 | **Load-bearing.** §8 secret patterns |
 | [T05](T05-git-ops.md) | `core/git-ops.ts` + `core/identity.ts` | ✓ | T01 | execFile wrappers; user email |
 
-## Phase B — Stateful modules
+## Phase B: Stateful modules
 
 | ID | Task | Status | Depends on | Notes |
 |----|------|--------|------------|-------|
@@ -25,11 +25,11 @@ Operational view of v0 work. Each row links to a task file with full scope, acce
 | [T10](T10-outbox.md) | `core/outbox.ts` | ✓ | T08 | offline queue |
 | [T11](T11-name-resolver.md) | `core/name-resolver.ts` | ✓ | T06 | name vs ID resolution |
 
-## Phase C — Commands
+## Phase C: Commands
 
 | ID | Task | Status | Depends on | Spec |
 |----|------|--------|------------|------|
-| [T12](T12-cli-program.md) | `cli/index.ts` + `cli/ui.ts` | ✓ | — | Commander shell |
+| [T12](T12-cli-program.md) | `cli/index.ts` + `cli/ui.ts` | ✓ |  | Commander shell |
 | [T13](T13-cmd-init.md) | `drev init` | ✓ | T05, T07, T08, T12 | §9.1 |
 | [T14](T14-cmd-share.md) | `drev share` | ✓ | T03, T04, T05, T06, T07, T08, T09, T10, T11, T12 | §9.2 |
 | [T15](T15-cmd-resume.md) | `drev resume` | ✓ | T02, T03, T05, T06, T08, T09, T11, T12 | §9.5 |
@@ -43,7 +43,7 @@ Operational view of v0 work. Each row links to a task file with full scope, acce
 | [T23](T23-cmd-autoshare-sweep.md) | autoshare-sweep (internal) | ✓ | T07, T08, T09, T14 | §9.12, §10 |
 | [T24](T24-cmd-scrub.md) | `drev scrub` | ✓ | T05, T08, T11, T12 | §9.10 |
 
-## Phase D — Ship gates
+## Phase D: Ship gates
 
 | ID | Task | Status | Depends on | Notes |
 |----|------|--------|------------|-------|
@@ -54,7 +54,7 @@ Operational view of v0 work. Each row links to a task file with full scope, acce
 
 ## Post-v0.1 backlog (known issues)
 
-Logged for fix in v0.1.x — discovered during real-world testing of v0.1.0.
+Logged for fix in v0.1.x, discovered during real-world testing of v0.1.0.
 
 | ID | Task | Status | Severity | Notes |
 |----|------|--------|----------|-------|

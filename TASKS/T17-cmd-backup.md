@@ -28,5 +28,5 @@ Most of this is one call into the shared share-implementation function with diff
 
 ## Out of scope
 
-- Backup retention policy — informational `retention_days` only
-- Compression / deduplication — out of v0
+- Backup retention policy, informational `retention_days` only
+- Compression / deduplication, out of v0

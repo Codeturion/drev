@@ -5,7 +5,7 @@
 
 ## Scope
 
-The manual test that the §14.1 experiment proved is possible. Now we do it through the real `drev share` and `drev resume` CLI on two separate machines (or two separate user accounts on one machine — second-best, but acceptable).
+The manual test that the §14.1 experiment proved is possible. Now we do it through the real `drev share` and `drev resume` CLI on two separate machines (or two separate user accounts on one machine, second-best, but acceptable).
 
 ### Procedure
 
@@ -23,7 +23,7 @@ The manual test that the §14.1 experiment proved is possible. Now we do it thro
 ### What success looks like
 
 - Resume command spawns Claude Code without error
-- Resumed Claude Code has full context — answers recall questions accurately
+- Resumed Claude Code has full context, answers recall questions accurately
 - File paths in tool calls work on Machine B's filesystem
 - Subagent transcripts (if any) are present
 
@@ -49,5 +49,5 @@ Document the test outcome in `docs/MANUAL_TESTS.md`:
 
 ## Out of scope
 
-- Automating this — `claude --resume` is interactive; full automation would require driving the resumed Claude programmatically, which is a v0.1+ project
-- Cross-OS (Windows producer → POSIX consumer) — flagged in CORRECTIONS, deferred unless required
+- Automating this, `claude --resume` is interactive; full automation would require driving the resumed Claude programmatically, which is a v0.1+ project
+- Cross-OS (Windows producer → POSIX consumer), flagged in CORRECTIONS, deferred unless required

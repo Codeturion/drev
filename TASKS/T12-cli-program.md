@@ -1,6 +1,6 @@
 # T12: cli/index.ts + cli/ui.ts
 
-**Phase:** C · **Depends on:** — (can land before commands; commands plug in incrementally)
+**Phase:** C · **Depends on:**, (can land before commands; commands plug in incrementally)
 **Architecture refs:** §6 (entry), §17 (style)
 
 ## Scope
@@ -47,7 +47,7 @@ function confirm(prompt: string): Promise<boolean>; // y/N reader on stdin
 ## Acceptance
 
 - `npm run build` produces `dist/cli.js` that:
-  - Has shebang (already from tsup banner — verify)
+  - Has shebang (already from tsup banner, verify)
   - Runs `--help` and exits 0
   - Runs `--version` and prints package.json version
 - Unknown command exits with helpful error
@@ -56,6 +56,6 @@ function confirm(prompt: string): Promise<boolean>; // y/N reader on stdin
 
 ## Out of scope
 
-- Telemetry / analytics — never
-- Plugin system for third-party commands — out of v0
-- i18n — not in v0
+- Telemetry / analytics, never
+- Plugin system for third-party commands, out of v0
+- i18n, not in v0

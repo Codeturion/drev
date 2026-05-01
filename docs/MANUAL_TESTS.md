@@ -2,7 +2,7 @@
 
 Some Drev behaviors can't be reasonably automated. These procedures must be re-run before each release. Record outcomes inline at the end of this file.
 
-## Test 1 — §14.1 path-rewrite reproducibility
+## Test 1: §14.1 path-rewrite reproducibility
 
 **Purpose:** Verify that a JSONL whose paths have been rewritten via `core/path-rewriter` is still loadable by `claude --resume` with full session context.
 
@@ -22,7 +22,7 @@ Some Drev behaviors can't be reasonably automated. These procedures must be re-r
 
 **If it fails:** the path rewriter has regressed (reproduce against `experiment/rewrite.mjs`'s output as the oracle), or Claude Code's resume behavior has changed.
 
-## Test 2 — Real cross-machine resume
+## Test 2: Real cross-machine resume
 
 **Purpose:** Validate the full producer→consumer flow on two physically distinct machines (or at minimum, two distinct user accounts on one machine), through the actual `drev share` and `drev resume` CLI.
 
@@ -38,8 +38,8 @@ Some Drev behaviors can't be reasonably automated. These procedures must be re-r
 
 ### Machine B (consumer)
 
-4. `drev init <same-private-repo>` (or `drev init Codeturion/test-cross-machine` — shorthand idempotent)
-5. `drev list` — confirm `xmachine-test` appears
+4. `drev init <same-private-repo>` (or `drev init Codeturion/test-cross-machine`: shorthand idempotent)
+5. `drev list`: confirm `xmachine-test` appears
 6. From any directory you want as the destination project root, `drev resume xmachine-test` (passes `--into <path>` if you're not inside a git repo)
 7. Claude Code launches with the resumed session
 8. Ask a recall question whose answer only the original session would know
@@ -58,17 +58,17 @@ Append a row to the table at the bottom of this file with:
 
 **Pass criterion:** Step 9 succeeds. If subagent JSONLs were present in the source session, verify they're also present at the destination encoded-cwd's `<id>/subagents/` directory.
 
-**If it fails:** check `docs/CORRECTIONS.md` §1 (Windows separator handling) and §2 (subagent JSONLs). Compare the destination JSONL against `experiment/rewrite.mjs` output for the same source — they should be byte-identical.
+**If it fails:** check `docs/CORRECTIONS.md` §1 (Windows separator handling) and §2 (subagent JSONLs). Compare the destination JSONL against `experiment/rewrite.mjs` output for the same source, they should be byte-identical.
 
-## Test 3 — End-to-end smoke (single machine, two simulated users)
+## Test 3: End-to-end smoke (single machine, two simulated users)
 
 **Purpose:** Quick sanity check that `init → share → list → resume --no-launch` works without any real GitHub or Claude binary.
 
-**Last passed:** *Run as part of the integration test in `tests/integration/share-resume.test.ts` — see `npm test`.*
+**Last passed:** *Run as part of the integration test in `tests/integration/share-resume.test.ts`: see `npm test`.*
 
 This is the automated check. If `npm test` is green, this passes.
 
-## Test 4 — `drev hooks install` against real Claude Code config
+## Test 4: `drev hooks install` against real Claude Code config
 
 **Purpose:** Verify hooks install without corrupting the user's `~/.claude/settings.json`.
 
@@ -76,10 +76,10 @@ This is the automated check. If `npm test` is green, this passes.
 
 1. Back up `~/.claude/settings.json` (`cp ~/.claude/settings.json ~/.claude/settings.backup.json`)
 2. `drev hooks install`
-3. Inspect `~/.claude/settings.json` — Drev's entries should be present in `SessionStart` and `SessionEnd`, all other entries preserved.
+3. Inspect `~/.claude/settings.json`: Drev's entries should be present in `SessionStart` and `SessionEnd`, all other entries preserved.
 4. `drev hooks uninstall`
-5. Inspect again — Drev's entries gone, all other entries still there.
-6. Compare against backup — should match the original.
+5. Inspect again, Drev's entries gone, all other entries still there.
+6. Compare against backup, should match the original.
 
 **Pass criterion:** Step 6 matches.
 
@@ -88,5 +88,5 @@ This is the automated check. If `npm test` is green, this passes.
 | Date | Test | Result | Notes |
 |------|------|--------|-------|
 | 2026-05-01 | §14.1 path rewrite | PASS | Real session 83a0c3cb-…, src=F:\Unity Projects\deep-cleaning-services → dest=F:\drev-experiment, recall verified (Gio/2D Unity/Photoshop/Figma) |
-| 2026-05-01 | Test 2 — cross-machine resume | PASS | Windows 11 (producer) → macOS (consumer). Session ab1704f8-… ("xos-fix"), 216 turns, 467 KB. Cross-OS path rewrite verified (mid-path separators translated to `/`). Two real bugs surfaced and fixed during the test: (1) thinking-block signatures broke cross-account resume (CORRECTIONS §4) and (2) `drev init --reinit` collided on existing local clones. After both fixes + dist rebuild, full recall confirmed by continuing the conversation on Mac without API errors. |
-| 2026-05-01 | Test 2 — cross-machine resume (reverse) | PASS | macOS (producer) → Windows 11 (consumer), same session pool. Path rewrite produced valid Windows paths (mid-path separators translated to `\`). Recall and continuation verified without API errors. Confirms the full bidirectional cross-OS pipeline works end-to-end. |
+| 2026-05-01 | Test 2, cross-machine resume | PASS | Windows 11 (producer) → macOS (consumer). Session ab1704f8-… ("xos-fix"), 216 turns, 467 KB. Cross-OS path rewrite verified (mid-path separators translated to `/`). Two real bugs surfaced and fixed during the test: (1) thinking-block signatures broke cross-account resume (CORRECTIONS §4) and (2) `drev init --reinit` collided on existing local clones. After both fixes + dist rebuild, full recall confirmed by continuing the conversation on Mac without API errors. |
+| 2026-05-01 | Test 2, cross-machine resume (reverse) | PASS | macOS (producer) → Windows 11 (consumer), same session pool. Path rewrite produced valid Windows paths (mid-path separators translated to `\`). Recall and continuation verified without API errors. Confirms the full bidirectional cross-OS pipeline works end-to-end. |

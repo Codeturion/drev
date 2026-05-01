@@ -9,9 +9,9 @@ Implement `drev mark <name-or-id> <flag>` per §9.8.
 
 ### Flags (mutually exclusive)
 
-- `--public` / `--team` — set `meta.visibility = 'team'`
-- `--private` — set `meta.visibility = 'private'`
-- `--delete` — `gitOps.rm` (recursive) the session directory
+- `--public` / `--team`: set `meta.visibility = 'team'`
+- `--private`: set `meta.visibility = 'private'`
+- `--delete`: `gitOps.rm` (recursive) the session directory
 
 ### Flow
 
@@ -37,5 +37,5 @@ Implement `drev mark <name-or-id> <flag>` per §9.8.
 
 ## Out of scope
 
-- Bulk mark (mark multiple sessions) — out of v0
-- Soft-delete with recovery window — `mark --delete` is committed; use git revert if needed
+- Bulk mark (mark multiple sessions), out of v0
+- Soft-delete with recovery window, `mark --delete` is committed; use git revert if needed

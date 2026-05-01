@@ -31,5 +31,5 @@ Implement `drev rename <name-or-id> <new-name>` per §9.6.
 
 ## Out of scope
 
-- Renaming someone else's session via admin override — never in v0
-- Renaming `id` — IDs are immutable per §5.1
+- Renaming someone else's session via admin override, never in v0
+- Renaming `id`: IDs are immutable per §5.1

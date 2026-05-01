@@ -6,13 +6,13 @@
 
 ## Scope
 
-Implement `drev share [--name N] [--private] [--session-id ID]` per §9.2. This is the highest-fanout command in the project — touches almost every core module.
+Implement `drev share [--name N] [--private] [--session-id ID]` per §9.2. This is the highest-fanout command in the project, touches almost every core module.
 
 ### Flow (from §9.2)
 
 1. Read user config; load default repo
 2. Resolve target session via `--session-id` or most-recent JSONL
-3. Read JSONL stats: turns, files touched, created_at — via `core/session`
+3. Read JSONL stats: turns, files touched, created_at, via `core/session`
 4. Capture git state at project root: HEAD SHA, branch (best-effort)
 5. Resolve name: `--name`, sanitized via `repo.sanitizeName`; else prompt with auto-suggestion
 6. Run redaction over JSONL via `core/redaction`
@@ -45,6 +45,6 @@ If this is the first share to the target repo (`users/<self>/` empty), show reda
 
 ## Out of scope
 
-- Auto-summarize via API call (§9.2 step 5 — `auto_summarize: true`) — defer to v0.1
-- Forking with `parent_session` lineage — v0.5
-- Selective file inclusion — share is all-or-nothing for v0
+- Auto-summarize via API call (§9.2 step 5, `auto_summarize: true`), defer to v0.1
+- Forking with `parent_session` lineage, v0.5
+- Selective file inclusion, share is all-or-nothing for v0

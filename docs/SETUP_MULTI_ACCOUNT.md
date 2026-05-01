@@ -12,16 +12,16 @@ Capture a Claude Code session on Windows. Share it via Drev. Pull and resume it 
 
 Two things only became real with the v0.1.x cross-OS rewrite work:
 
-1. **Path prefix swap** — `F:\Nuts Projects\drev` → `/Users/<you>/work/test`. Was already working in v0.1.0.
-2. **Mid-path separator translation** — `\src\foo.ts` → `/src/foo.ts` after the prefix swap. New in v0.1.x. Without this, file references in tool calls are malformed on the Mac side and Claude can't resume actions that touch files.
+1. **Path prefix swap**, `F:\Nuts Projects\drev` → `/Users/<you>/work/test`. Was already working in v0.1.0.
+2. **Mid-path separator translation**, `\src\foo.ts` → `/src/foo.ts` after the prefix swap. New in v0.1.x. Without this, file references in tool calls are malformed on the Mac side and Claude can't resume actions that touch files.
 
 The test below confirms both.
 
 ### Test procedure (run after the auth setup below works)
 
-#### On Windows (producer — already set up)
+#### On Windows (producer: already set up)
 
-1. Have a real Claude Code session of decent size — ≥30 turns and ≥5 tool calls. The Drev build conversation itself qualifies, or pick any recent project session.
+1. Have a real Claude Code session of decent size, ≥30 turns and ≥5 tool calls. The Drev build conversation itself qualifies, or pick any recent project session.
 2. Find its session id:
    ```bash
    ls -t ~/.claude/projects/*/*.jsonl | head -1
@@ -67,9 +67,9 @@ In the resumed Claude Code session on the Mac, ask:
 
 > "What were we working on in the last session, and what files did we touch?"
 
-Expected: Claude answers with details from the Windows session — same project, same tasks, same files. The file paths it remembers will be the **rewritten** ones (`/Users/<you>/work/drev-xos-test/...`), not the original Windows ones.
+Expected: Claude answers with details from the Windows session, same project, same tasks, same files. The file paths it remembers will be the **rewritten** ones (`/Users/<you>/work/drev-xos-test/...`), not the original Windows ones.
 
-If you want to push further, ask Claude to read one of the files it remembers. The path will be POSIX-valid (forward slashes throughout). The file won't actually exist on the Mac (this is a test machine, not a clone of the Windows project), but Claude's `Read` call will hit the filesystem with a well-formed path and get a clean "file not found" — not a "ENOENT: invalid path" or similar separator-confusion error.
+If you want to push further, ask Claude to read one of the files it remembers. The path will be POSIX-valid (forward slashes throughout). The file won't actually exist on the Mac (this is a test machine, not a clone of the Windows project), but Claude's `Read` call will hit the filesystem with a well-formed path and get a clean "file not found", not a "ENOENT: invalid path" or similar separator-confusion error.
 
 ### Pass criteria
 
@@ -95,9 +95,9 @@ This guide assumes the standard case: a work account is the "default" identity f
 
 ## Why this is needed
 
-`drev` is a CLI; it shells out to `git`. `git` uses macOS Keychain (or Windows Credential Manager / Linux libsecret) to cache credentials per host. The Keychain typically stores **one credential set per host** — so whichever account was last used for `github.com` becomes the default for everything else.
+`drev` is a CLI; it shells out to `git`. `git` uses macOS Keychain (or Windows Credential Manager / Linux libsecret) to cache credentials per host. The Keychain typically stores **one credential set per host**, so whichever account was last used for `github.com` becomes the default for everything else.
 
-GUI Git clients like Fork, GitHub Desktop, GitKraken keep their own per-account credential stores. Those don't help here — `drev` doesn't see them.
+GUI Git clients like Fork, GitHub Desktop, GitKraken keep their own per-account credential stores. Those don't help here, `drev` doesn't see them.
 
 You need to configure `git` and/or `gh` directly, not the GUI client.
 
@@ -110,11 +110,11 @@ ERROR: Repository not found.
 fatal: Could not read from remote repository.
 ```
 
-GitHub returns "not found" rather than "no access" for private repos — so this error usually means **wrong account is authenticated**, not that the repo is missing.
+GitHub returns "not found" rather than "no access" for private repos, so this error usually means **wrong account is authenticated**, not that the repo is missing.
 
 ---
 
-## Recipe — SSH host alias (recommended)
+## Recipe: SSH host alias (recommended)
 
 This gives the second account its own SSH key, accessed via a fake hostname. The default account's setup stays completely untouched.
 
@@ -153,7 +153,7 @@ Host github-<account-label>
 EOF
 ```
 
-`IdentitiesOnly yes` is important — it tells SSH to use **only** this key for this alias, not whatever else is in your agent.
+`IdentitiesOnly yes` is important, it tells SSH to use **only** this key for this alias, not whatever else is in your agent.
 
 ### 4. Test the connection
 
@@ -166,7 +166,7 @@ You should see:
 Hi <second-account-username>! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
-If you see "Permission denied" or it greets you with the wrong username, the key didn't get added correctly — re-check step 2.
+If you see "Permission denied" or it greets you with the wrong username, the key didn't get added correctly, re-check step 2.
 
 ### 5. Use the alias with drev
 
@@ -186,13 +186,13 @@ drev will clone via SSH using only the second account's key. The local clone's `
 
 ### 6. Verify nothing else broke
 
-Pick any other repo cloned via the default account on the same machine — `cd` into it and run `git pull`, `git fetch`, `git push`. Should work exactly as before. The host alias only intercepts URLs that explicitly use it; everything else still goes through `github.com` with whatever credentials Keychain holds.
+Pick any other repo cloned via the default account on the same machine, `cd` into it and run `git pull`, `git fetch`, `git push`. Should work exactly as before. The host alias only intercepts URLs that explicitly use it; everything else still goes through `github.com` with whatever credentials Keychain holds.
 
 ---
 
 ## Pre-flight: confirm the invite landed on the right account
 
-If the second account hasn't been invited to the Drev repo, no auth setup will help — the repo really is "not found" for that account.
+If the second account hasn't been invited to the Drev repo, no auth setup will help, the repo really is "not found" for that account.
 
 From the **producer's** machine (the one that owns the repo):
 
@@ -216,7 +216,7 @@ Or just click the invite email link in a browser logged in as the second account
 
 ---
 
-## Alternative — `gh auth login` with multiple accounts
+## Alternative: `gh auth login` with multiple accounts
 
 If you'd rather not deal with SSH keys, `gh` natively supports multiple GitHub accounts since v2.40. Both accounts are kept logged in; you switch between them with `gh auth switch`.
 
@@ -245,7 +245,7 @@ gh auth switch --user <work-account-username>
 
 ---
 
-## Alternative — Personal Access Token in clone URL (one-off)
+## Alternative: Personal Access Token in clone URL (one-off)
 
 Quickest, dirtiest option for a one-shot test. Generate a PAT on the second account and embed it in the clone URL.
 
@@ -322,4 +322,4 @@ If you want drev's git operations to follow the same account Fork uses, you have
 - An SSH key (per the recipe above)
 - A `gh` login (which then writes to Keychain via `gh auth setup-git`)
 
-The SSH alias path is cleanest because it sidesteps the "one credential per host" Keychain limitation — different host aliases get different keys, no conflict.
+The SSH alias path is cleanest because it sidesteps the "one credential per host" Keychain limitation, different host aliases get different keys, no conflict.

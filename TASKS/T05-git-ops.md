@@ -1,13 +1,13 @@
 # T05: core/git-ops.ts + core/identity.ts
 
 **Phase:** A · **Depends on:** T01 · **Blocks:** T08, T13, T14, T15, T18, T20, T24
-**Architecture refs:** §6 (modules), §17 (style — no shell-true), §3.6 (no native deps)
+**Architecture refs:** §6 (modules), §17 (style, no shell-true), §3.6 (no native deps)
 
 ## Scope
 
 Async wrappers around `git` and (for scrub) `git filter-repo`, using Node's `execFile` from `node:child_process`. **Never `exec`. Never `shell: true`.** Each function returns parsed stdout or throws a `RepoError`.
 
-### `core/git-ops.ts` — minimum surface
+### `core/git-ops.ts`: minimum surface
 
 ```ts
 async function clone(url: string, dest: string): Promise<void>;
@@ -42,7 +42,7 @@ The shortUsername is what populates `users/<username>/` directories.
 ## Files
 
 - `src/core/git-ops.ts`
-- `src/core/git-ops.test.ts` — test against a tmp git repo, no real network
+- `src/core/git-ops.test.ts`: test against a tmp git repo, no real network
 - `src/core/identity.ts`
 - `src/core/identity.test.ts`
 
@@ -56,7 +56,7 @@ The shortUsername is what populates `users/<username>/` directories.
 
 ## Out of scope
 
-- High-level repo lifecycle — that's T08 `core/repo.ts`
-- Outbox queueing on push failure — that's T10
-- Conflict resolution UI — out of v0
-- Authentication (token, ssh-key handling) — defer to git's own config
+- High-level repo lifecycle, that's T08 `core/repo.ts`
+- Outbox queueing on push failure, that's T10
+- Conflict resolution UI, out of v0
+- Authentication (token, ssh-key handling), defer to git's own config

@@ -6,7 +6,7 @@
 
 ## Scope
 
-Read and analyze Claude Code session JSONLs. Crucially: **discover and include subagent JSONLs** (`<id>/subagents/*.jsonl`) — not addressed in original architecture, but required for transcript fidelity.
+Read and analyze Claude Code session JSONLs. Crucially: **discover and include subagent JSONLs** (`<id>/subagents/*.jsonl`), not addressed in original architecture, but required for transcript fidelity.
 
 ### Contract
 
@@ -39,7 +39,7 @@ async function readSessionStats(files: SessionFiles): Promise<SessionStats>;
 ## Files
 
 - `src/core/session.ts`
-- `src/core/session.test.ts` — fixtures from a real (anonymized) JSONL
+- `src/core/session.test.ts`: fixtures from a real (anonymized) JSONL
 
 ## Acceptance
 
@@ -51,6 +51,6 @@ async function readSessionStats(files: SessionFiles): Promise<SessionStats>;
 
 ## Out of scope
 
-- Path rewriting — T03 handles that
-- Schema migration of JSONL itself — out of v0 (defer to v0.1 per §15.3)
-- Session diffing / forking — v0.5
+- Path rewriting, T03 handles that
+- Schema migration of JSONL itself, out of v0 (defer to v0.1 per §15.3)
+- Session diffing / forking, v0.5

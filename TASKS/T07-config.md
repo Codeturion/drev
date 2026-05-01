@@ -66,4 +66,4 @@ Repo config defaults:
 ## Out of scope
 
 - Multi-repo config (§14.4 v0.5)
-- Encrypted secrets in config — out of v0
+- Encrypted secrets in config, out of v0

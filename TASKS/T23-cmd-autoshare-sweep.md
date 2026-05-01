@@ -5,7 +5,7 @@
 
 ## Scope
 
-Implement the auto-share sweep called by Claude Code hooks per §10. Internal command — not user-invoked, but works if invoked manually.
+Implement the auto-share sweep called by Claude Code hooks per §10. Internal command, not user-invoked, but works if invoked manually.
 
 ### Algorithm (verbatim from §10)
 
@@ -44,6 +44,6 @@ If 3+ consecutive sweep runs fail, the next interactive `drev` command must prin
 
 ## Out of scope
 
-- Bandwidth-aware throttling — out of v0
-- Auto-merge of remote changes during sweep — current "10s timeout fallback to local" is enough
-- Per-project sweep configuration beyond `.drev-disable` flag file — defer to v0.1
+- Bandwidth-aware throttling, out of v0
+- Auto-merge of remote changes during sweep, current "10s timeout fallback to local" is enough
+- Per-project sweep configuration beyond `.drev-disable` flag file, defer to v0.1

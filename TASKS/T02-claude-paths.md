@@ -42,5 +42,5 @@ drevHome(): string;
 
 ## Out of scope
 
-- File I/O — this module is pure computation
-- Path rewriting — that's T03
+- File I/O, this module is pure computation
+- Path rewriting, that's T03

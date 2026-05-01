@@ -41,11 +41,11 @@ async function writeMeta(filePath: string, meta: SessionMeta): Promise<void>;
 
 ### Validation rules
 
-- `schema_version === 1` — anything else throws with "upgrade Drev" message (per §15.3)
+- `schema_version === 1`: anything else throws with "upgrade Drev" message (per §15.3)
 - All required fields per §5.1 must be present and well-typed
 - `id` must be UUID-ish (lenient regex: 32 hex chars + dashes)
 - `created_at` and `shared_at` must parse as ISO dates
-- Extra unknown fields are allowed (forward-compat) — validate but don't reject
+- Extra unknown fields are allowed (forward-compat), validate but don't reject
 
 ## Files
 
@@ -62,5 +62,5 @@ async function writeMeta(filePath: string, meta: SessionMeta): Promise<void>;
 
 ## Out of scope
 
-- Auto-summarize via API call (§9.2 step 5) — defer to v0.1
-- Schema v2 migration — when needed
+- Auto-summarize via API call (§9.2 step 5), defer to v0.1
+- Schema v2 migration, when needed

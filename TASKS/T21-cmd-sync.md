@@ -5,7 +5,7 @@
 
 ## Scope
 
-Implement `drev sync` per §9.9 — pull and drain the outbox.
+Implement `drev sync` per §9.9, pull and drain the outbox.
 
 ### Flow
 
@@ -32,5 +32,5 @@ Implement `drev sync` per §9.9 — pull and drain the outbox.
 
 ## Out of scope
 
-- Scheduled / background sync — that's `drev autoshare-sweep` (T23)
-- Conflict resolution if push fails due to remote changes — `pullRebase` first should handle most cases; if not, item stays queued
+- Scheduled / background sync, that's `drev autoshare-sweep` (T23)
+- Conflict resolution if push fails due to remote changes, `pullRebase` first should handle most cases; if not, item stays queued

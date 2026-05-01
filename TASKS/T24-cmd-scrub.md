@@ -5,7 +5,7 @@
 
 ## Scope
 
-Implement `drev scrub <name-or-id> [--confirm]` per §9.10 — permanently remove a session from Git history. Emergency hatch when redaction missed something.
+Implement `drev scrub <name-or-id> [--confirm]` per §9.10, permanently remove a session from Git history. Emergency hatch when redaction missed something.
 
 ### Flow
 
@@ -32,10 +32,10 @@ Implement `drev scrub <name-or-id> [--confirm]` per §9.10 — permanently remov
 - Missing `git filter-repo` → clear install instructions for macOS/Linux/Windows
 - Ownership rejection same as `rename` and `mark`
 - Tests use a tmp git repo with multiple commits; verify scrubbed dir is gone from history
-- Force-push is gated behind `--confirm` — never done implicitly
+- Force-push is gated behind `--confirm`: never done implicitly
 
 ## Out of scope
 
-- Bundling `git filter-repo` — third-party install per §3.6 (no native deps)
-- Partial scrub (just one file from a session) — out of v0
-- Coordinated team-wide re-clone — communication is the user's responsibility; we only print the warning
+- Bundling `git filter-repo`: third-party install per §3.6 (no native deps)
+- Partial scrub (just one file from a session), out of v0
+- Coordinated team-wide re-clone, communication is the user's responsibility; we only print the warning

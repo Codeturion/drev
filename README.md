@@ -1,6 +1,6 @@
 # Drev
 
-Share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume <name>`, native `claude --resume` continues with full transcript fidelity. v0 — see [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/CORRECTIONS.md](./docs/CORRECTIONS.md).
+Share Claude Code sessions through a Git repo. Producer runs `drev share`, consumer runs `drev resume <name>`, native `claude --resume` continues with full transcript fidelity. v0. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [docs/CORRECTIONS.md](./docs/CORRECTIONS.md).
 
 ## Install
 
@@ -30,14 +30,14 @@ Create private repo at fuat/drev-sessions? [Y/n] Y
 ```
 
 Two questions:
-1. *Got a Drev repo URL?* — paste (joining a teammate's repo) or hit Enter (creating your own).
-2. If creating: *Create private repo at `<your-gh-user>/drev-sessions`?* — `Y` accepts, `n` lets you pick a different `<owner>/<name>`.
+1. *Got a Drev repo URL?* Paste (joining a teammate's repo) or hit Enter (creating your own).
+2. If creating: *Create private repo at `<your-gh-user>/drev-sessions`?* `Y` accepts, `n` lets you pick a different `<owner>/<name>`.
 
 ### What `drev init` installs by default
 
-- Claude Code hooks (`SessionStart`, `SessionEnd`) — trigger auto-share when sessions end
-- A `drev` skill at `~/.claude/skills/drev/SKILL.md` — lets you say *"save this session as foo"* inside Claude Code
-- The current project on the auto-share whitelist — scope is per-project, not global
+- Claude Code hooks (`SessionStart`, `SessionEnd`) that trigger auto-share when sessions end
+- A `drev` skill at `~/.claude/skills/drev/SKILL.md` so you can say *"save this session as foo"* inside Claude Code
+- The current project on the auto-share whitelist (scope is per-project, not global)
 
 ```
 drev init --no-auto-share                  # skip the install entirely
@@ -74,7 +74,7 @@ drev share                          # most-recent session
 drev share --name auth-refactor     # named
 drev backup --name nightly          # private, purpose=backup
 ```
-Drev redacts common secrets before pushing — full list in [docs/REDACTION.md](./docs/REDACTION.md).
+Drev redacts common secrets before pushing. Full list in [docs/REDACTION.md](./docs/REDACTION.md).
 
 ## Resume
 

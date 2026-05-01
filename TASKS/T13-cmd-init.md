@@ -41,4 +41,4 @@ Implement `drev init <repo-url> [--name <local-name>]` per §9.1.
 ## Out of scope
 
 - Auto-discovery of existing Drev repos in `~/.drev/repos/` (defer to v0.1)
-- Migration from a non-Drev repo with conflicts — assume clean target
+- Migration from a non-Drev repo with conflicts, assume clean target

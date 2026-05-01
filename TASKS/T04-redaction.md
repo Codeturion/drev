@@ -47,6 +47,6 @@ Patterns used = `DEFAULT_PATTERNS` ++ `repo.config.redaction_extensions` ++ `use
 
 ## Out of scope
 
-- First-share confirmation prompt (§8.4) — that's a CLI concern, lives in `cmd/share` (T14)
-- `drev scrub` history rewrite — separate command (T24), shells `git filter-repo`
-- Pattern auto-discovery (e.g., entropy-based) — not in v0
+- First-share confirmation prompt (§8.4), that's a CLI concern, lives in `cmd/share` (T14)
+- `drev scrub` history rewrite, separate command (T24), shells `git filter-repo`
+- Pattern auto-discovery (e.g., entropy-based), not in v0

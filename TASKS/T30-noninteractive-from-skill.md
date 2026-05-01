@@ -10,7 +10,7 @@ When Claude (inside a Claude Code session) invokes a `drev` command via Bash per
 Currently affected paths (anything that calls `ui.confirm` or `ui.prompt`):
 - `drev share` first-share confirmation (§8.4): "Continue? [Y/n]"
 - `drev init` wizard: "Got a Drev repo URL? …" / "Create private repo at <X>? [Y/n]" / "Enter '<owner>/<name>'"
-- `drev resume` destination prompt — currently silent-defaulted, OK
+- `drev resume` destination prompt, currently silent-defaulted, OK
 - Any future prompts
 
 ## Required behavior
@@ -23,11 +23,11 @@ When stdin is **not a TTY** (`process.stdin.isTTY !== true`):
 
 ## Implementation sketch
 
-1. Add `isInteractive(): boolean` helper to `cli/ui.ts` — returns `process.stdin.isTTY === true && process.stdout.isTTY === true`.
+1. Add `isInteractive(): boolean` helper to `cli/ui.ts`: returns `process.stdin.isTTY === true && process.stdout.isTTY === true`.
 2. Modify `ui.confirm` and `ui.prompt` to short-circuit when `!isInteractive()`.
 3. In `executeShare`, gate the first-share confirmation on `isInteractive()`. When non-interactive AND it would have prompted, log the redaction summary as info and proceed (or honor a future `--no-confirm` flag).
 4. In `init.ts` wizard, fail fast with a clear error at the top of `runWizard()` if `!isInteractive()`.
-5. Add an `--auto` flag to `drev share` (and equivalents) for explicit non-interactive consent — useful in scripts even when stdin IS a TTY.
+5. Add an `--auto` flag to `drev share` (and equivalents) for explicit non-interactive consent, useful in scripts even when stdin IS a TTY.
 
 ## Acceptance
 
@@ -38,9 +38,9 @@ When stdin is **not a TTY** (`process.stdin.isTTY !== true`):
 
 ## Out of scope
 
-- Making the auto-share-sweep handle prompts — sweep is already non-interactive by design (§10 silent operation guarantee).
-- Detecting "is this Claude's Bash tool" specifically — TTY detection is the right abstraction.
+- Making the auto-share-sweep handle prompts, sweep is already non-interactive by design (§10 silent operation guarantee).
+- Detecting "is this Claude's Bash tool" specifically, TTY detection is the right abstraction.
 
 ## Related
 
-- T29 (SessionEnd reliability) — independent issue but both are about the auto-share/skill UX surface.
+- T29 (SessionEnd reliability), independent issue but both are about the auto-share/skill UX surface.

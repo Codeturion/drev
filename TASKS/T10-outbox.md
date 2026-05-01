@@ -38,5 +38,5 @@ async function isQueued(id: string): Promise<boolean>;
 
 ## Out of scope
 
-- Network detection / online check — that's the job of `git push` failing in `T14`/`T21`
-- TTL / expiration of queued items — out of v0
+- Network detection / online check, that's the job of `git push` failing in `T14`/`T21`
+- TTL / expiration of queued items, out of v0

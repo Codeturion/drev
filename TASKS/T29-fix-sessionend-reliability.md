@@ -5,7 +5,7 @@
 
 ## Symptom
 
-After `drev hooks install`, the `~/.claude/settings.json` `SessionEnd` entry sometimes does not result in `drev autoshare-sweep` running. Sessions end (terminal closes, Claude Code exits) but no share happens — verified by checking that the session ID is not in `users/<self>/<date>-*` directories afterward.
+After `drev hooks install`, the `~/.claude/settings.json` `SessionEnd` entry sometimes does not result in `drev autoshare-sweep` running. Sessions end (terminal closes, Claude Code exits) but no share happens, verified by checking that the session ID is not in `users/<self>/<date>-*` directories afterward.
 
 `SessionStart` may also be unreliable; needs verification.
 
@@ -29,9 +29,9 @@ If hooks don't fire, the entire auto-share UX is broken. The user thinks drev is
 ## Possible fixes (depending on root cause)
 
 - **Hook command path:** ensure `drev` resolves at hook-time. Use absolute path in the hook entry instead of bare `drev`. The install routine could record the result of `which drev` / `where drev` and embed that absolute path.
-- **Add `SessionStart` as belt-and-braces:** §10 already calls `SessionStart` "catches sessions that didn't end cleanly" — if `SessionEnd` is unreliable on some platforms, `SessionStart` of the *next* session sweeps the previous one. Verify this works as designed.
+- **Add `SessionStart` as belt-and-braces:** §10 already calls `SessionStart` "catches sessions that didn't end cleanly", if `SessionEnd` is unreliable on some platforms, `SessionStart` of the *next* session sweeps the previous one. Verify this works as designed.
 - **Add a `SessionEnd`-equivalent fallback:** if Claude Code provides another lifecycle event (`Stop`, `OnExit`, etc.), wire that too. Belt-and-braces with `_drev: true` tags so uninstall stays clean.
-- **Add an explicit "drev sweep" skill instruction:** the skill could tell Claude to run `drev autoshare-sweep` when the user says "I'm done", "wrapping up", "ending session" — software belt for hardware suspenders.
+- **Add an explicit "drev sweep" skill instruction:** the skill could tell Claude to run `drev autoshare-sweep` when the user says "I'm done", "wrapping up", "ending session", software belt for hardware suspenders.
 
 ## Acceptance
 
@@ -41,5 +41,5 @@ If hooks don't fire, the entire auto-share UX is broken. The user thinks drev is
 
 ## Out of scope
 
-- Replacing hooks with a daemon — too heavy for v0.x
-- Rebuilding the auto-share trigger via filesystem watching of `~/.claude/projects/` — defer to v0.5+ if hooks remain unreliable after fixes
+- Replacing hooks with a daemon, too heavy for v0.x
+- Rebuilding the auto-share trigger via filesystem watching of `~/.claude/projects/`: defer to v0.5+ if hooks remain unreliable after fixes
