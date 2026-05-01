@@ -14,6 +14,7 @@ import { enqueue } from '../../core/outbox.js';
 import {
   compileUserPattern,
   DEFAULT_PATTERNS,
+  findSuspiciousTokens,
   redact,
 } from '../../core/redaction.js';
 import type { RedactionPattern } from '../../core/redaction.js';
@@ -162,6 +163,23 @@ export async function executeShare(
     for (const [type, n] of Object.entries(r.counts)) {
       totalCounts[type] = (totalCounts[type] ?? 0) + n;
     }
+  }
+
+  // 6b. Entropy safety net (item 3): scan the redacted output for high-entropy
+  // tokens the regex layer didn't catch. Warn-only; never blocks the share.
+  // Combine parent + subagent payloads so a leak in a subagent transcript is
+  // not invisible just because the parent looked clean.
+  const allRedactedText = [redactedJsonl, ...subagentRedactions.map((s) => s.output)].join(
+    '\n',
+  );
+  const suspicious = findSuspiciousTokens(allRedactedText);
+  if (suspicious.count > 0) {
+    const sampleHint = suspicious.samples.length > 0
+      ? ` Examples: ${suspicious.samples.join(', ')}.`
+      : '';
+    warn(
+      `${suspicious.count} high-entropy token(s) remain after redaction; review before sharing if any are secrets.${sampleHint}`,
+    );
   }
 
   // 7. First-share confirmation (§8.4) — must happen BEFORE any write.

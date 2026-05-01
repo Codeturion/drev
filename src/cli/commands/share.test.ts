@@ -463,6 +463,49 @@ describe('executeShare — first-share confirmation', () => {
     expect(result.pushed).toBe(true);
   });
 
+  // Item 3: entropy safety net. After regex redaction, suspicious high-entropy
+  // tokens trigger a warn() so the operator can review before pushing.
+  it('warns when the redacted payload still contains a high-entropy token', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    // Put a realistic-shaped vendor key in the redacted output. The regex
+    // layer won't catch it (it's not a known prefix), so the entropy pass
+    // should flag it.
+    // High-entropy mixed-class token, length >= 32, not pure-hex.
+    const suspicious = 'vendor_live_Aa1Bb2Cc3Dd4Ee5Ff6Gg7Hh8Ii9Jj0Kk1Lm2N';
+    await setupHappyMocks({
+      repoDir,
+      cwd: '/p/q',
+      metaFiles: ['/repo/users/whoever/2026-04-30-x/meta.yaml'],
+      // This goes into the redacted output via the `redact` mock setup.
+    });
+    // Override the redact mock to return our suspicious payload as the output.
+    vi.mocked(redaction.redact).mockReturnValueOnce({
+      output: `prefix ${suspicious} suffix`,
+      counts: {},
+    });
+
+    await executeShare({ name: 'has-leak', interactive: false });
+
+    const warnCalls = vi.mocked(ui.warn).mock.calls.map((c) => c[0]);
+    expect(warnCalls.some((m) => m.includes('high-entropy'))).toBe(true);
+    expect(warnCalls.some((m) => m.includes(suspicious))).toBe(true);
+  });
+
+  it('does not warn about high-entropy tokens when none remain', async () => {
+    const repoDir = await makeTmp('drev-share-');
+    await setupHappyMocks({
+      repoDir,
+      cwd: '/p/q',
+      metaFiles: ['/repo/users/whoever/2026-04-30-x/meta.yaml'],
+    });
+    // Default redact mock returns plain text with no suspicious tokens.
+
+    await executeShare({ name: 'clean', interactive: false });
+
+    const warnCalls = vi.mocked(ui.warn).mock.calls.map((c) => c[0]);
+    expect(warnCalls.some((m) => m.includes('high-entropy'))).toBe(false);
+  });
+
   // T30: when invoked from a non-TTY context (Claude's Bash tool, scripts, --auto),
   // the first-share path must still surface the redaction summary as info so the
   // caller knows what was scrubbed, even though it can't prompt.
