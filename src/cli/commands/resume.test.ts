@@ -20,6 +20,9 @@ vi.mock('../../core/git-ops.js', () => {
     revParse: vi.fn(async () => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
     showTopLevel: vi.fn(async () => null),
     isAvailable: vi.fn(async () => true),
+    isClean: vi.fn(async () => true),
+    stashPush: vi.fn(async () => {}),
+    checkout: vi.fn(async () => {}),
   };
 });
 
@@ -66,6 +69,12 @@ vi.mock('node:fs/promises', async (orig) => {
     readdir: vi.fn(async () => []),
     mkdir: vi.fn(async () => undefined),
     writeFile: vi.fn(async () => undefined),
+    // Default: target path does not exist; tests opt in by overriding.
+    stat: vi.fn(async () => {
+      const err = new Error('ENOENT') as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }),
   };
 });
 
@@ -74,6 +83,8 @@ vi.mock('../ui.js', () => {
     info: vi.fn(),
     warn: vi.fn(),
     errorOut: vi.fn(),
+    confirm: vi.fn(async () => false),
+    isInteractive: vi.fn(() => true),
   };
 });
 
@@ -141,6 +152,9 @@ beforeEach(() => {
   );
   vi.mocked(gitOps.showTopLevel).mockResolvedValue(null);
   vi.mocked(gitOps.isAvailable).mockResolvedValue(true);
+  vi.mocked(gitOps.isClean).mockResolvedValue(true);
+  vi.mocked(gitOps.stashPush).mockResolvedValue(undefined);
+  vi.mocked(gitOps.checkout).mockResolvedValue(undefined);
 
   vi.mocked(nameResolver.resolve).mockResolvedValue({
     metaPath: '/repo/users/alice/2026-04-30-auth/meta.yaml',
@@ -161,6 +175,15 @@ beforeEach(() => {
   vi.mocked(fsPromises.readdir).mockResolvedValue([] as never);
   vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined as never);
   vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined as never);
+  // Default: target path does not exist (ENOENT). Tests can override.
+  vi.mocked(fsPromises.stat).mockImplementation(async () => {
+    const err = new Error('ENOENT') as NodeJS.ErrnoException;
+    err.code = 'ENOENT';
+    throw err;
+  });
+
+  vi.mocked(ui.confirm).mockResolvedValue(false);
+  vi.mocked(ui.isInteractive).mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -426,5 +449,179 @@ describe('runResume — drift warning', () => {
     await runResume('auth', { into: '/dest', launch: false });
 
     expect(ui.warn).not.toHaveBeenCalled();
+  });
+});
+
+// Item 2: refuse to clobber an existing local session unless --force or
+// interactive confirmation. In non-TTY contexts (Claude's Bash, scripts)
+// we surface a hard error pointing at --force rather than silent overwrite.
+describe('runResume — overwrite protection', () => {
+  function existingTargetExists(): void {
+    vi.mocked(fsPromises.stat).mockImplementation(async (p: unknown) => {
+      const path = String(p);
+      // Pretend ONLY the target parent JSONL exists (existence is what we gate on).
+      if (path.endsWith(`${'7f3a2b1c-1234-5678-90ab-cdef01234567'}.jsonl`)) {
+        return { isFile: () => true } as never;
+      }
+      const err = new Error('ENOENT') as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    });
+  }
+
+  it('refuses with error when non-interactive and no --force', async () => {
+    existingTargetExists();
+    vi.mocked(ui.isInteractive).mockReturnValue(false);
+
+    await expect(
+      runResume('auth', { into: '/dest', launch: false }),
+    ).rejects.toMatchObject({
+      name: 'RepoError',
+      message: expect.stringContaining('--force'),
+    });
+    expect(fsPromises.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('overwrites silently when --force is set', async () => {
+    existingTargetExists();
+    vi.mocked(ui.isInteractive).mockReturnValue(false);
+
+    await runResume('auth', { into: '/dest', launch: false, force: true });
+
+    expect(ui.confirm).not.toHaveBeenCalled();
+    expect(fsPromises.writeFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('prompts in interactive mode and aborts when user declines', async () => {
+    existingTargetExists();
+    vi.mocked(ui.isInteractive).mockReturnValue(true);
+    vi.mocked(ui.confirm).mockResolvedValue(false);
+
+    await runResume('auth', { into: '/dest', launch: false });
+
+    expect(ui.confirm).toHaveBeenCalledTimes(1);
+    expect(fsPromises.writeFile).not.toHaveBeenCalled();
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.includes('cancelled'))).toBe(true);
+  });
+
+  it('proceeds in interactive mode when user confirms', async () => {
+    existingTargetExists();
+    vi.mocked(ui.isInteractive).mockReturnValue(true);
+    vi.mocked(ui.confirm).mockResolvedValue(true);
+
+    await runResume('auth', { into: '/dest', launch: false });
+
+    expect(ui.confirm).toHaveBeenCalledTimes(1);
+    expect(fsPromises.writeFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes normally when target does not exist (default)', async () => {
+    // Default stat mock throws ENOENT.
+    await runResume('auth', { into: '/dest', launch: false });
+    expect(ui.confirm).not.toHaveBeenCalled();
+    expect(fsPromises.writeFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Item 2: --checkout pins the working tree to the recorded commit_sha so
+// transcript paths and line numbers still resolve. Auto-stashes a dirty tree.
+describe('runResume — --checkout', () => {
+  function withDrift(): void {
+    vi.mocked(nameResolver.resolve).mockResolvedValue({
+      metaPath: '/repo/users/alice/2026-04-30-auth/meta.yaml',
+      meta: buildMeta({ commit_sha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }),
+    });
+    vi.mocked(gitOps.revParse).mockResolvedValue(
+      'cafef00dcafef00dcafef00dcafef00dcafef00d',
+    );
+  }
+
+  it('checks out the recorded commit_sha when drift is detected and tree is clean', async () => {
+    withDrift();
+    vi.mocked(gitOps.isClean).mockResolvedValue(true);
+
+    await runResume('auth', { into: '/dest', launch: false, checkout: true });
+
+    expect(gitOps.stashPush).not.toHaveBeenCalled();
+    expect(gitOps.checkout).toHaveBeenCalledWith(
+      '/dest',
+      'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    );
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.startsWith('Checked out deadbeef.'))).toBe(true);
+    expect(infoCalls.some((m) => m.includes('git checkout -') && !m.includes('stash pop'))).toBe(
+      true,
+    );
+  });
+
+  it('stashes first when drift is detected and tree is dirty', async () => {
+    withDrift();
+    vi.mocked(gitOps.isClean).mockResolvedValue(false);
+
+    await runResume('auth', { into: '/dest', launch: false, checkout: true });
+
+    expect(gitOps.stashPush).toHaveBeenCalledWith(
+      '/dest',
+      expect.stringContaining('drev resume'),
+    );
+    expect(gitOps.checkout).toHaveBeenCalledWith(
+      '/dest',
+      'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+    );
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.includes('git stash pop'))).toBe(true);
+  });
+
+  it('suppresses the drift warning when --checkout is going to act', async () => {
+    withDrift();
+    vi.mocked(gitOps.isClean).mockResolvedValue(true);
+
+    await runResume('auth', { into: '/dest', launch: false, checkout: true });
+
+    expect(ui.warn).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op (info only) when --checkout is set but there is no drift', async () => {
+    vi.mocked(nameResolver.resolve).mockResolvedValue({
+      metaPath: '/repo/users/alice/2026-04-30-auth/meta.yaml',
+      meta: buildMeta({ commit_sha: 'cafef00dcafef00dcafef00dcafef00dcafef00d' }),
+    });
+    vi.mocked(gitOps.revParse).mockResolvedValue(
+      'cafef00dcafef00dcafef00dcafef00dcafef00d',
+    );
+
+    await runResume('auth', { into: '/dest', launch: false, checkout: true });
+
+    expect(gitOps.checkout).not.toHaveBeenCalled();
+    const infoCalls = vi.mocked(ui.info).mock.calls.map((c) => c[0]);
+    expect(infoCalls.some((m) => m.includes('no-op'))).toBe(true);
+  });
+
+  it('errors when --checkout is set but the meta has no commit_sha', async () => {
+    // buildMeta default has no commit_sha.
+    await expect(
+      runResume('auth', { into: '/dest', launch: false, checkout: true }),
+    ).rejects.toMatchObject({
+      name: 'RepoError',
+      message: expect.stringContaining('commit_sha'),
+    });
+    expect(gitOps.checkout).not.toHaveBeenCalled();
+  });
+
+  it('errors when --checkout is set but destination is not a git repo', async () => {
+    vi.mocked(nameResolver.resolve).mockResolvedValue({
+      metaPath: '/repo/users/alice/2026-04-30-auth/meta.yaml',
+      meta: buildMeta({ commit_sha: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' }),
+    });
+    vi.mocked(gitOps.revParse).mockRejectedValue(new Error('not a git repository'));
+
+    await expect(
+      runResume('auth', { into: '/dest', launch: false, checkout: true }),
+    ).rejects.toMatchObject({
+      name: 'RepoError',
+      message: expect.stringContaining('git repo'),
+    });
+    expect(gitOps.checkout).not.toHaveBeenCalled();
   });
 });
