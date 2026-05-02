@@ -193,6 +193,7 @@ export async function executeShare(
   const email = await currentUserEmail();
   const username = shortUsername(email);
   if (await isFirstShare(repoDir, username)) {
+    // Summary always; prompt only when interactive. Do not re-merge these.
     showRedactionSummary(repoDir, totalCounts);
     if (interactive) {
       const ok = await confirm('Continue?');
